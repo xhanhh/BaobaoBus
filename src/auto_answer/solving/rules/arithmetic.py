@@ -76,6 +76,11 @@ _SUBTRAHEND_FROM_REVERSED_FACTS = re.compile(
     rf"被减数是(?P<minuend>{NUMBER})[,，]"
     rf"减数是(?:\(\)|多少|几)"
 )
+_DIFFERENCE_FROM_TERMS = re.compile(
+    rf"减数是(?P<subtrahend>{NUMBER})[,，]"
+    rf"被减数是(?P<minuend>{NUMBER})[,，]"
+    rf"差是(?:\(\)|多少|几)"
+)
 _TRAILING_ARITHMETIC_SEQUENCE = re.compile(
     rf"(?:找规律[:：]?)?(?P<first>{NUMBER})[、,](?P<second>{NUMBER})[、,]"
     rf"(?P<third>{NUMBER})[、,](?P<fourth>{NUMBER})[、,](?:{_BLANK}|口)"
@@ -117,6 +122,13 @@ def solve_arithmetic_sequence(
 
 
 def solve_operation_change(question: Question) -> SolveDecision | None:
+    difference = _DIFFERENCE_FROM_TERMS.search(question.text)
+    if difference:
+        minuend = Decimal(difference.group("minuend"))
+        subtrahend = Decimal(difference.group("subtrahend"))
+        values = tuple(parse_number(option) for option in question.options)
+        return match_unique(minuend - subtrahend, values, "difference from terms")
+
     missing_subtrahend = _SUBTRAHEND_FROM_DIFFERENCE.search(question.text)
     if missing_subtrahend is None:
         missing_subtrahend = _SUBTRAHEND_FROM_REVERSED_FACTS.search(question.text)

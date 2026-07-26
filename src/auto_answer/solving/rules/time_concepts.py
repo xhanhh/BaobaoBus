@@ -39,11 +39,42 @@ _MOVIE_END_TIME = re.compile(
 _HOUR_MINUTE_OPTION = re.compile(
     rf"(?P<hour>{NUMBER})时(?:(?P<minute>{NUMBER})分)?"
 )
+_MINUTE_CIRCLE_HOUR_GRIDS = re.compile(
+    r"分针走一圈[,，]时针走(?:\(\)|多少|几)(?:个)?大格"
+)
+_HOUR_HAND_DISTANCE = re.compile(
+    rf"时针从[“\"']?(?P<start>{NUMBER})[”\"']?走到"
+    rf"[“\"']?(?P<end>{NUMBER})[”\"']?[,，]走了(?:\(\)|多少|几)小时"
+)
+_HOURS_AGO = re.compile(
+    rf"现在是(?:上午|下午|晚上)?(?P<hour>{NUMBER})时[,，]"
+    rf"(?P<elapsed>{NUMBER})小时前是(?:\(\)|多少|几)时"
+)
 
 
 def solve_time(question: Question) -> SolveDecision | None:
+    values = tuple(parse_number(option) for option in question.options)
+
+    if _MINUTE_CIRCLE_HOUR_GRIDS.search(question.text):
+        return match_unique(Decimal(1), values, "minute circle to hour-hand grid")
+
+    hand_distance = _HOUR_HAND_DISTANCE.search(question.text)
+    if hand_distance:
+        start = Decimal(hand_distance.group("start"))
+        end = Decimal(hand_distance.group("end"))
+        distance = (end - start) % 12
+        return match_unique(distance, values, "hour-hand distance")
+
+    hours_ago = _HOURS_AGO.search(question.text)
+    if hours_ago:
+        hour = Decimal(hours_ago.group("hour"))
+        elapsed = Decimal(hours_ago.group("elapsed"))
+        target = (hour - elapsed) % 12
+        if target == 0:
+            target = Decimal(12)
+        return match_unique(target, values, "hours ago")
+
     if _CLOCK_OVERLAP_AT_HOUR.search(question.text):
-        values = tuple(parse_number(option) for option in question.options)
         return match_unique(Decimal(12), values, "clock hands overlap at whole hour")
 
     large_grids = _MINUTE_HAND_LARGE_GRIDS.search(question.text)
@@ -51,7 +82,6 @@ def solve_time(question: Question) -> SolveDecision | None:
         grids = Decimal(large_grids.group("grids"))
         if grids < 0:
             return None
-        values = tuple(parse_number(option) for option in question.options)
         return match_unique(grids * 5, values, "second-hand rotations")
 
     movie = _MOVIE_END_TIME.search(question.text)

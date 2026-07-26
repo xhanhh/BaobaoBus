@@ -16,10 +16,12 @@ from .arithmetic import (
 )
 from .common import match_unique, parse_number
 from .counting import solve_counting_problem
+from .curriculum import solve_curriculum_template
 from .money import solve_money
 from .number_concepts import (
     solve_counter_two_digit_extreme,
     solve_number_neighbor,
+    solve_number_pair,
     solve_place_value_number,
 )
 from .time_concepts import solve_time
@@ -33,6 +35,10 @@ class RuleEngine:
         option_values = tuple(parse_number(value) for value in question.options)
 
         decision = solve_number_neighbor(question.text, option_values)
+        if decision is not None:
+            return decision
+
+        decision = solve_number_pair(question)
         if decision is not None:
             return decision
 
@@ -69,6 +75,10 @@ class RuleEngine:
             return decision
 
         decision = solve_counting_choice(question)
+        if decision is not None:
+            return decision
+
+        decision = solve_curriculum_template(question)
         if decision is not None:
             return decision
 

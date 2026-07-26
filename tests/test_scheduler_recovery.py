@@ -160,7 +160,7 @@ def test_transient_incomplete_ocr_is_retried_without_stopping(
         source=StaticSource(frame),
         ocr=ocr,
         rules=RuleEngine(),
-        ollama=FakeOllama(),
+        llm=FakeOllama(),
         state_detector=FakeDetector(page),
         recorder=DebugRecorder(DebugConfig(enabled=False, output_dir=tmp_path)),
         adb=None,
@@ -197,7 +197,7 @@ def test_ocr_random_fallback_requires_explicit_configuration(tmp_path: Path) -> 
         source=StaticSource(frame),
         ocr=AlwaysInvalidOCR(),
         rules=RuleEngine(),
-        ollama=FakeOllama(),
+        llm=FakeOllama(),
         state_detector=FakeDetector(page),
         recorder=DebugRecorder(DebugConfig(enabled=False, output_dir=tmp_path)),
         adb=None,
@@ -233,7 +233,7 @@ def test_llm_random_fallback_requires_explicit_configuration(tmp_path: Path) -> 
         source=StaticSource(frame),
         ocr=RetryOCR(),
         rules=NoRules(),  # type: ignore[arg-type]
-        ollama=FailingOllama(),  # type: ignore[arg-type]
+        llm=FailingOllama(),  # type: ignore[arg-type]
         state_detector=FakeDetector(page),
         recorder=DebugRecorder(DebugConfig(enabled=False, output_dir=tmp_path)),
         adb=None,

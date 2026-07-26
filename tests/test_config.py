@@ -75,6 +75,11 @@ y=-1
     assert config.state.infer_sequential_question_number is True
     assert config.regions.ready_indicator is None
     assert config.ollama.retry_numeric_as_text is True
+    assert config.openai_compatible.enabled is False
+    assert config.openai_compatible.model == "qwen3.7-flash"
+    assert config.openai_compatible.api_key == ""
+    assert config.openai_compatible.api_key_env == "DASHSCOPE_API_KEY"
+    assert config.llm.provider_order == ("aliyun", "ollama")
     assert config.fallback.random_on_ocr_failure is False
     assert config.fallback.random_on_llm_failure is False
     assert config.adb.persistent_shell is True

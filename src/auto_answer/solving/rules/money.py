@@ -48,9 +48,45 @@ _AVAILABLE_MONEY_CHANGE = re.compile(
     rf"买了(?:一个|一件|一本|一张)(?:[^0-9,，。]*)"
     rf"(?P<price>{NUMBER})元[^。]*?找回"
 )
+_TWO_COIN_DENOMINATIONS = re.compile(
+    rf"有(?P<first_value>{NUMBER})(?P<first_unit>元|角)和"
+    rf"(?P<second_value>{NUMBER})(?P<second_unit>元|角)的硬币"
+    rf"共(?P<total>{NUMBER})元[,，]"
+    rf"其中(?P=first_value)(?P=first_unit)硬币有(?P<first_count>{NUMBER})枚[,，]"
+    rf"(?P=second_value)(?P=second_unit)硬币有(?:\(\)|多少|几)枚"
+)
 
 
 def solve_money(question: Question) -> SolveDecision | None:
+    coins = _TWO_COIN_DENOMINATIONS.search(question.text)
+    if coins:
+        first_value = _amount_to_jiao(
+            Decimal(coins.group("first_value")),
+            coins.group("first_unit"),
+        )
+        second_value = _amount_to_jiao(
+            Decimal(coins.group("second_value")),
+            coins.group("second_unit"),
+        )
+        remaining = (
+            Decimal(coins.group("total")) * 10
+            - first_value * Decimal(coins.group("first_count"))
+        )
+        count, remainder = (
+            divmod(remaining, second_value)
+            if second_value > 0
+            else (Decimal(), Decimal(1))
+        )
+        numeric_options = tuple(
+            Decimal(option) if re.fullmatch(NUMBER, option) else None
+            for option in question.options
+        )
+        return (
+            _match_numeric_choice(count, numeric_options, "coin denomination count")
+            if remaining >= 0 and remainder == 0
+            else None
+        )
+
     mixed_subtraction = _MIXED_UNIT_SUBTRACTION.search(question.text)
     if mixed_subtraction:
         target = (
@@ -269,3 +305,14 @@ def _match_bare_yuan_change(
     if len(matches) != 1:
         return None
     return SolveDecision(matches[0], "rule", f"money change: {target_yuan}元")
+
+
+def _match_numeric_choice(
+    target: Decimal,
+    values: tuple[Decimal | None, ...],
+    reason: str,
+) -> SolveDecision | None:
+    matches = [index for index, value in enumerate(values) if value == target]
+    if len(matches) != 1:
+        return None
+    return SolveDecision(matches[0], "rule", f"{reason}: {target}")

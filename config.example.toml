@@ -104,6 +104,24 @@ warmup_on_start = true
 # retry exactly once using the simpler text/index response format.
 retry_numeric_as_text = true
 
+[llm]
+# Providers are tried in this order. Disabled providers are skipped.
+provider_order = ["aliyun", "ollama"]
+
+[openai_compatible]
+# Aliyun Model Studio OpenAI-compatible Chat API.
+enabled = false
+base_url = "https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+# qwen3.7-flash favors latency; qwen3.7-plus favors accuracy.
+model = "qwen3.7-flash"
+# Copy this file to the gitignored src/config.toml before filling the secret.
+api_key = ""
+# Optional fallback when api_key above is empty.
+api_key_env = "DASHSCOPE_API_KEY"
+timeout_seconds = 10.0
+enable_thinking = false
+retry_numeric_as_text = true
+
 [adb]
 executable = "tools/android/adb.exe"
 # Set serial when more than one device is connected. Otherwise leave it empty.

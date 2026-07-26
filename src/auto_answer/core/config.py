@@ -84,6 +84,25 @@ class OllamaConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class OpenAICompatibleConfig:
+    enabled: bool = False
+    base_url: str = (
+        "https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+    )
+    model: str = "qwen3.7-flash"
+    api_key: str = ""
+    api_key_env: str = "DASHSCOPE_API_KEY"
+    timeout_seconds: float = 10.0
+    enable_thinking: bool = False
+    retry_numeric_as_text: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class LLMRoutingConfig:
+    provider_order: tuple[str, ...] = ("aliyun", "ollama")
+
+
+@dataclass(frozen=True, slots=True)
 class ADBConfig:
     executable: Path
     tap_points: tuple[Point, Point, Point, Point]
@@ -142,6 +161,8 @@ class AppConfig:
     regions: RegionConfig
     ocr: OCRConfig
     ollama: OllamaConfig
+    openai_compatible: OpenAICompatibleConfig
+    llm: LLMRoutingConfig
     adb: ADBConfig
     state: StateConfig
     debug: DebugConfig
@@ -223,6 +244,9 @@ class AppConfig:
             raise ConfigurationError("state.ready_min_purple_ratio must be in [0, 1]")
         positive_timeouts = {
             "ollama.timeout_seconds": self.ollama.timeout_seconds,
+            "openai_compatible.timeout_seconds": (
+                self.openai_compatible.timeout_seconds
+            ),
             "adb.timeout_seconds": self.adb.timeout_seconds,
             "state.poll_interval_seconds": self.state.poll_interval_seconds,
             "state.stable_timeout_seconds": self.state.stable_timeout_seconds,
@@ -244,6 +268,31 @@ class AppConfig:
                 raise ConfigurationError(f"{label} must be positive")
         if self.ollama.num_predict <= 0:
             raise ConfigurationError("ollama.num_predict must be positive")
+        supported_providers = {"ollama", "aliyun"}
+        if not self.llm.provider_order:
+            raise ConfigurationError("llm.provider_order must not be empty")
+        if len(set(self.llm.provider_order)) != len(self.llm.provider_order):
+            raise ConfigurationError("llm.provider_order must not contain duplicates")
+        unknown_providers = set(self.llm.provider_order) - supported_providers
+        if unknown_providers:
+            raise ConfigurationError(
+                f"llm.provider_order contains unsupported providers: "
+                f"{sorted(unknown_providers)!r}"
+            )
+        if self.openai_compatible.enabled:
+            if not self.openai_compatible.base_url.startswith(("http://", "https://")):
+                raise ConfigurationError(
+                    "openai_compatible.base_url must be an HTTP(S) URL"
+                )
+            if not self.openai_compatible.model.strip():
+                raise ConfigurationError("openai_compatible.model must not be empty")
+            if (
+                not self.openai_compatible.api_key.strip()
+                and not self.openai_compatible.api_key_env.strip()
+            ):
+                raise ConfigurationError(
+                    "openai_compatible.api_key or api_key_env must not be empty"
+                )
         if require_live_coordinates:
             for index, point in enumerate(self.adb.tap_points):
                 if point.x < 0 or point.y < 0:
@@ -284,6 +333,8 @@ def load_config(path: str | Path) -> AppConfig:
     regions = raw.get("regions", {})
     ocr = raw.get("ocr", {})
     ollama = raw.get("ollama", {})
+    openai_compatible = raw.get("openai_compatible", {})
+    llm = raw.get("llm", {})
     adb = raw.get("adb", {})
     state = raw.get("state", {})
     debug = raw.get("debug", {})
@@ -363,6 +414,36 @@ def load_config(path: str | Path) -> AppConfig:
             num_predict=int(ollama.get("num_predict", 64)),
             warmup_on_start=bool(ollama.get("warmup_on_start", True)),
             retry_numeric_as_text=bool(ollama.get("retry_numeric_as_text", True)),
+        ),
+        openai_compatible=OpenAICompatibleConfig(
+            enabled=bool(openai_compatible.get("enabled", False)),
+            base_url=str(
+                openai_compatible.get(
+                    "base_url",
+                    "https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/"
+                    "compatible-mode/v1",
+                )
+            ).rstrip("/"),
+            model=str(openai_compatible.get("model", "qwen3.7-flash")),
+            api_key=str(openai_compatible.get("api_key", "")),
+            api_key_env=str(
+                openai_compatible.get("api_key_env", "DASHSCOPE_API_KEY")
+            ),
+            timeout_seconds=float(
+                openai_compatible.get("timeout_seconds", 10.0)
+            ),
+            enable_thinking=bool(
+                openai_compatible.get("enable_thinking", False)
+            ),
+            retry_numeric_as_text=bool(
+                openai_compatible.get("retry_numeric_as_text", True)
+            ),
+        ),
+        llm=LLMRoutingConfig(
+            provider_order=tuple(
+                str(provider)
+                for provider in llm.get("provider_order", ["aliyun", "ollama"])
+            )
         ),
         adb=ADBConfig(
             executable=(base_dir / adb_path).resolve() if not adb_path.is_absolute() else adb_path,

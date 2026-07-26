@@ -1,7 +1,7 @@
 # 低延迟自动答题器
 
 程序从 Windows 桌面上的 scrcpy 视频区域抓取同一帧，批量识别题干与四个选项，
-优先用保守规则求解，无法确定时请求本地 Ollama，最后才通过 ADB 点击。
+优先用保守规则求解，无法确定时按配置请求阿里云或本地 Ollama，最后才通过 ADB 点击。
 空 OCR、低置信度、非法答案或页面变化默认都会阻止点击；暂时性识别失败会自动重试，
 持续失败会保存调试资料并等待人工处理，不会终止主循环。
 
@@ -57,7 +57,37 @@ Copy-Item -LiteralPath config.example.toml -Destination config.toml
   --image res\example-screenshot.jpg --dry-run
 ```
 
-离线演练仍会加载 PaddleOCR；只有规则无法判断时才会请求 Ollama。
+离线演练仍会加载 PaddleOCR；只有规则无法判断时才会请求已配置的 LLM。
+
+### LLM 来源
+
+`llm.provider_order` 决定模型调用顺序。例如阿里云优先、本地兜底：
+
+```toml
+[llm]
+provider_order = ["aliyun", "ollama"]
+
+[openai_compatible]
+enabled = true
+base_url = "https://你的WorkspaceId.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+model = "qwen3.7-flash" # 也可改为 qwen3.7-plus
+api_key = "sk-..."
+api_key_env = "DASHSCOPE_API_KEY"
+enable_thinking = false
+```
+
+项目实际使用的 `src/config.toml` 已被 `.gitignore` 排除，可以直接填写
+`api_key`。程序优先读取配置值；若留空，则回退读取 `api_key_env` 指定的
+环境变量：
+
+```powershell
+$env:DASHSCOPE_API_KEY = "sk-..."
+```
+
+阿里云请求使用 OpenAI 兼容的 `/chat/completions`、`response_format = json_object`、
+`temperature = 0` 并关闭 thinking；响应仍经过
+与 Ollama 相同的答案序号、算式、答案值和选项对应关系校验。首选来源出现 HTTP
+错误、超时、空响应或严格校验失败时，才会尝试下一个来源。
 
 CPU OCR 默认设置 `ocr.enable_mkldnn = false`，用于规避部分 PaddlePaddle 3.x
 版本在 oneDNN/PIR 指令转换中的运行错误。关闭后可能略慢，但不会影响识别逻辑。
@@ -97,8 +127,8 @@ OCR；紧接着的批量 OCR 仍必须识别出相同题号，否则本轮结果
 ADB 点击各阶段耗时。
 
 纯数字选项首先使用带算式和值校验的结构化响应。如果响应为空、超时、格式错误或
-算式与答案矛盾，`ollama.retry_numeric_as_text = true` 会让程序再请求一次仅返回
-选项序号的文本模式；第二次仍失败才进入最终失败处理。
+算式与答案矛盾，各来源的 `retry_numeric_as_text = true` 会让程序再请求一次仅返回
+选项序号的 JSON 模式；该来源仍失败后才切换到下一个来源。
 
 `fallback.random_on_ocr_failure` 和 `fallback.random_on_llm_failure` 默认均为
 `false`，此时程序不会点击当前题，等待用户人工处理并进入下一题。将对应选项设为
@@ -126,7 +156,7 @@ ADB 点击各阶段耗时。
 - `core`：配置、领域模型和异常。
 - `vision`：截图、OCR、文本规范化和页面状态检测。
 - `device`：ADB 设备控制。
-- `solving`：Ollama 客户端与本地规则。
+- `solving`：LLM 路由、Ollama、OpenAI 兼容客户端与本地规则。
 - `solving/rules`：按算术、应用题、金额、计数和数概念拆分的规则模块。
 - `runtime`：中央调度器和失败材料记录。
 

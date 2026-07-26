@@ -39,6 +39,7 @@ _NUMERIC_SYSTEM_PROMPT = (
 )
 _TEXT_SYSTEM_PROMPT = (
     "你是小学选择题答题器。准确理解题目后选择唯一正确选项。"
+    "只输出JSON对象，且只能包含answer_index字段；"
     "answer_index只能填写选项前面的0、1、2、3零基序号。"
 )
 _NUMERIC_RESPONSE_SCHEMA: dict[str, Any] = {
@@ -76,7 +77,9 @@ _NUMERIC_USER_INSTRUCTION = (
     "最后一个等式的右侧必须是题目所问单位的最终数值，并与answer_value完全相同；"
     "answer_value写不带引号的最终数值，answer_index写它对应的选项序号。"
 )
-_TEXT_USER_INSTRUCTION = "\n只选择唯一正确选项，并返回它前面的零基序号。"
+_TEXT_USER_INSTRUCTION = (
+    "\n只选择唯一正确选项，并以JSON对象返回它前面的零基序号。"
+)
 
 
 def numeric_option_values(

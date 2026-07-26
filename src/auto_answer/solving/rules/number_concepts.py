@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 
-from ...core.models import SolveDecision
+from ...core.models import Question, SolveDecision
 from .common import NUMBER, match_unique
 
 _NUMBER_NEIGHBORS = re.compile(
@@ -61,6 +61,23 @@ _BOUNDED_PARITY = re.compile(
     rf"(?:并且|而且|,|，).*?是(?P<parity>偶数|双数|奇数|单数)"
 )
 _EXTREME_DIGIT_SUM = re.compile(r"最大的一位数和最小的两位数的和")
+_TWO_DIGIT_RELATION_CHOICE = re.compile(
+    rf"一个两位数.*?十位上的数字比个位上的数字"
+    rf"(?P<direction>少|小|多|大)(?P<delta>{NUMBER}).*?这个数可能是"
+)
+_EXTREME_NUMBER_OFFSET = re.compile(
+    rf"比(?P<base>最小的两位数|最大的一位数)"
+    rf"(?P<direction>多|少)(?P<delta>{NUMBER})(?:的数)?"
+)
+_NUMBER_AND_LATER = re.compile(
+    rf"个位上(?:的数字)?是(?P<ones>{NUMBER})[,，]"
+    rf"十位上(?:的数字)?是(?P<tens>{NUMBER})[,，]"
+    rf"这个数是(?:\(\)|多少|几)[,，]"
+    rf"它后面第(?P<offset>{NUMBER})个数是(?:\(\)|多少|几)"
+)
+_NUMBER_PAIR_OPTION = re.compile(
+    rf"(?P<first>{NUMBER})(?:和|、|,)(?P<second>{NUMBER})"
+)
 
 
 def solve_number_neighbor(
@@ -76,6 +93,42 @@ def solve_number_neighbor(
         return None
     target = (first + second) / 2
     return match_unique(target, values, "number between neighbors")
+
+
+def solve_number_pair(question: Question) -> SolveDecision | None:
+    match = _NUMBER_AND_LATER.search(question.text)
+    if match is None:
+        return None
+    tens = Decimal(match.group("tens"))
+    ones = Decimal(match.group("ones"))
+    offset = Decimal(match.group("offset"))
+    if (
+        tens != tens.to_integral_value()
+        or ones != ones.to_integral_value()
+        or offset != offset.to_integral_value()
+        or not 1 <= tens <= 9
+        or not 0 <= ones <= 9
+        or offset < 0
+    ):
+        return None
+    first = tens * 10 + ones
+    second = first + offset
+    matches = []
+    for index, option in enumerate(question.options):
+        candidate = _NUMBER_PAIR_OPTION.fullmatch(option)
+        if (
+            candidate is not None
+            and Decimal(candidate.group("first")) == first
+            and Decimal(candidate.group("second")) == second
+        ):
+            matches.append(index)
+    if len(matches) != 1:
+        return None
+    return SolveDecision(
+        matches[0],
+        "rule",
+        f"place value and later number: {first}, {second}",
+    )
 
 
 def solve_counter_two_digit_extreme(
@@ -106,6 +159,34 @@ def solve_place_value_number(
     text: str,
     values: tuple[Decimal | None, ...],
 ) -> SolveDecision | None:
+    relation = _TWO_DIGIT_RELATION_CHOICE.search(text)
+    if relation and all(value is not None for value in values):
+        delta = Decimal(relation.group("delta"))
+        wants_tens_smaller = relation.group("direction") in {"少", "小"}
+        matches = []
+        for index, value in enumerate(values):
+            assert value is not None
+            if value != value.to_integral_value() or not 10 <= value <= 99:
+                continue
+            tens, ones = divmod(int(value), 10)
+            actual = ones - tens if wants_tens_smaller else tens - ones
+            if Decimal(actual) == delta:
+                matches.append(index)
+        if len(matches) == 1:
+            return SolveDecision(matches[0], "rule", "two-digit digit relationship")
+        return None
+
+    offset = _EXTREME_NUMBER_OFFSET.search(text)
+    if offset:
+        base = (
+            Decimal(10)
+            if offset.group("base") == "最小的两位数"
+            else Decimal(9)
+        )
+        delta = Decimal(offset.group("delta"))
+        target = base + delta if offset.group("direction") == "多" else base - delta
+        return match_unique(target, values, "extreme number offset")
+
     if _EXTREME_DIGIT_SUM.search(text):
         return match_unique(Decimal(19), values, "extreme digit sum")
 

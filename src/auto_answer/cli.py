@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -12,15 +13,37 @@ from .core.errors import AutoAnswerError, ConfigurationError
 from .device.adb import ADBController
 from .runtime.debug import DebugRecorder
 from .runtime.scheduler import AnswerScheduler
-from .solving.ollama import OllamaClient
+from .solving.llm import build_llm_client
 from .solving.rules import RuleEngine
 from .vision.capture import ImageFrameSource, WindowsScreenFrameSource
 from .vision.ocr import PaddleOCRReader
 from .vision.state import PageStateDetector
 
+_ALIYUN_WORKSPACE_HOST = re.compile(
+    r"https://[^./\s]+(?P<suffix>\.[a-z0-9-]+\.maas\.aliyuncs\.com)",
+    re.IGNORECASE,
+)
+
+
+class _AliyunWorkspaceRedactionFilter(logging.Filter):
+    """Hide the workspace identifier while retaining useful endpoint details."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        redacted = _ALIYUN_WORKSPACE_HOST.sub(
+            r"https://workspace\g<suffix>",
+            message,
+        )
+        if redacted != message:
+            record.msg = redacted
+            record.args = ()
+        return True
+
 
 def _arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="scrcpy + PaddleOCR + Ollama auto answer")
+    parser = argparse.ArgumentParser(
+        description="scrcpy + PaddleOCR + routed LLM auto answer"
+    )
     parser.add_argument("--config", type=Path, default=Path("config.toml"))
     parser.add_argument(
         "--image",
@@ -45,8 +68,10 @@ def _configure_logging(config: AppConfig) -> None:
     )
     console = logging.StreamHandler()
     console.setFormatter(formatter)
+    console.addFilter(_AliyunWorkspaceRedactionFilter())
     file_handler = logging.FileHandler(config.log_file, encoding="utf-8")
     file_handler.setFormatter(formatter)
+    file_handler.addFilter(_AliyunWorkspaceRedactionFilter())
     logging.basicConfig(level=logging.INFO, handlers=[console, file_handler], force=True)
 
 
@@ -85,15 +110,19 @@ def main() -> int:
             device = adb.check_device()
             logging.getLogger(__name__).info("ADB device ready: %s", device)
 
-        ollama_client = OllamaClient(config.ollama)
-        ollama_client.start_warmup()
+        llm_client = build_llm_client(config)
+        logging.getLogger(__name__).info(
+            "LLM provider order: %s",
+            " -> ".join(llm_client.provider_names),
+        )
+        llm_client.start_warmup()
         ocr_reader = PaddleOCRReader(config.ocr)
         scheduler = AnswerScheduler(
             config=config,
             source=source,
             ocr=ocr_reader,
             rules=RuleEngine(),
-            ollama=ollama_client,
+            llm=llm_client,
             state_detector=PageStateDetector(
                 config.state,
                 config.regions,

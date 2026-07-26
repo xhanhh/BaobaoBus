@@ -18,7 +18,7 @@ from ..core.models import (
     SolveDecision,
 )
 from ..device.adb import ADBController
-from ..solving.ollama import OllamaClient
+from ..solving.llm import LLMClient
 from ..solving.rules import RuleEngine
 from ..vision.capture import FrameSource, crop_regions
 from ..vision.ocr import PaddleOCRReader
@@ -48,7 +48,7 @@ class AnswerScheduler:
         source: FrameSource,
         ocr: PaddleOCRReader,
         rules: RuleEngine,
-        ollama: OllamaClient,
+        llm: LLMClient,
         state_detector: PageStateDetector,
         recorder: DebugRecorder,
         adb: ADBController | None,
@@ -58,7 +58,7 @@ class AnswerScheduler:
         self._source = source
         self._ocr = ocr
         self._rules = rules
-        self._ollama = ollama
+        self._llm = llm
         self._state_detector = state_detector
         self._recorder = recorder
         self._adb = adb
@@ -199,7 +199,7 @@ class AnswerScheduler:
                         decision = self._rules.solve(question)
                         if decision is None:
                             self._transition(SchedulerState.SOLVING_BY_LLM)
-                            decision = self._ollama.solve(question)
+                            decision = self._llm.solve(question)
                         self._validate_decision(decision)
                     except SolverError as exc:
                         self._record_recoverable_error("solver-failed", last_read, exc)
@@ -340,7 +340,7 @@ class AnswerScheduler:
             raise
         finally:
             self._source.close()
-            self._ollama.close()
+            self._llm.close()
             if self._adb is not None:
                 self._adb.close()
             if self.state is not SchedulerState.ERROR:
