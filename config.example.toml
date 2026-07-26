@@ -1,0 +1,146 @@
+# The sample values below match res/example-screenshot.jpg (2670x1200).
+# For live use, replace them with the scrcpy video rectangle on the Windows desktop.
+[capture]
+left = 0
+top = 0
+width = 1500
+height = 674
+
+[regions.question_number]
+# Tight ROI containing only the "第 X 题" text.
+left = 660
+top = 25
+width = 180
+height = 50
+
+[regions.question]
+# ROI coordinates are relative to the captured scrcpy frame above.
+left = 43
+top = 100
+width = 1300
+height = 150
+
+# Option ROIs may be listed in any order. The program assigns indices by visual
+# order: rows top-to-bottom, and within each row left-to-right.
+[[regions.options]]
+left = 277
+top = 277
+width = 444
+height = 85
+
+[[regions.options]]
+left = 772
+top = 277
+width = 444
+height = 85
+
+[[regions.options]]
+left = 277
+top = 405
+width = 444
+height = 85
+
+[[regions.options]]
+left = 772
+top = 405
+width = 444
+height = 85
+
+[[regions.option_boxes]]
+left = 264
+top = 267
+width = 477
+height = 110
+
+[[regions.option_boxes]]
+left = 760
+top = 267
+width = 477
+height = 110
+
+[[regions.option_boxes]]
+left = 264
+top = 397
+width = 477
+height = 110
+
+[[regions.option_boxes]]
+left = 760
+top = 397
+width = 477
+height = 110
+
+[ocr]
+language = "ch"
+confidence_threshold = 0.60
+use_gpu = true
+# PaddleOCR 3.7 + PaddlePaddle 3.3.1 can fail in the oneDNN PIR converter.
+# Keep this disabled unless a future verified version fixes that incompatibility.
+enable_mkldnn = false
+cpu_threads = 8
+text_detection_model_name = "PP-OCRv6_medium_det"
+text_recognition_model_name = "PP-OCRv6_medium_rec"
+isolated_fragment_max_chars = 1
+isolated_fragment_max_area_ratio = 0.02
+isolated_fragment_max_height_ratio = 0.50
+recover_thin_minus = true
+symbol_foreground_threshold = 180
+
+[ollama]
+base_url = "http://localhost:11434"
+model = "qwen3.5:9b"
+timeout_seconds = 30.0
+keep_alive = "30m"
+num_predict = 64
+warmup_on_start = true
+
+[adb]
+executable = "tools/android/adb.exe"
+# Set serial when more than one device is connected. Otherwise leave it empty.
+serial = ""
+timeout_seconds = 5.0
+
+# These are PHONE NATIVE SCREEN coordinates, not screenshot/ROI coordinates.
+# All four placeholders must be replaced before live mode is allowed to start.
+[[adb.tap_points]]
+x = 896
+y = 585
+
+[[adb.tap_points]]
+x = 1770
+y = 595
+
+[[adb.tap_points]]
+x = 950
+y = 776
+
+[[adb.tap_points]]
+x = 1800
+y = 775
+
+[state]
+# Differences are normalized mean grayscale differences in [0, 1].
+stable_threshold = 0.025
+change_threshold = 0.030
+poll_interval_seconds = 0.03
+required_stable_frames = 2
+stable_timeout_seconds = 8.0
+change_timeout_seconds = 8.0
+page_confirm_frames = 2
+new_question_confirm_frames = 1
+page_wait_timeout_seconds = 10.0
+transition_timeout_seconds = 12.0
+question_number_cache_seconds = 1.0
+ocr_retry_attempts = 2
+ocr_retry_interval_seconds = 0.10
+white_pixel_threshold = 210
+min_white_ratio = 0.55
+max_capture_failures = 3
+
+[debug]
+enabled = true
+output_dir = "artifacts/failures"
+save_each_question = false
+
+[runtime]
+log_file = "artifacts/auto-answer.log"

@@ -1,0 +1,33 @@
+# Project-local Python environments
+/.venv/
+/.venv-old/
+
+# Python caches and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+
+# Test, lint, and coverage caches
+/.pytest_cache/
+/.ruff_cache/
+/.coverage
+/htmlcov/
+
+# IDE and OS metadata
+/.idea/
+/*.iml
+.DS_Store
+Thumbs.db
+
+# Local runtime configuration and generated diagnostics
+/src/config.toml
+/src/artifacts/
+/artifacts/
+*.log
+
+# Local secrets
+.env
+.env.*
+!.env.example

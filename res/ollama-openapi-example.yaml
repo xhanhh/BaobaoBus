@@ -1,0 +1,149 @@
+openapi: 3.0.0
+info:
+  title: example
+  version: 1.0.0
+paths:
+  /api/generate:
+    post:
+      summary: ollama
+      operationId: c_users_18201_documents_bruno_test_ollama_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: Content-Type
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        $ref: '#/components/requestBodies/ollama'
+      servers:
+        - url: http://localhost:11434
+  /api/chat:
+    post:
+      summary: ollama chat
+      operationId: c_users_18201_documents_bruno_test_ollama_chat_yml
+      description: ''
+      tags:
+        - ''
+      responses:
+        '200':
+          description: ''
+      parameters:
+        - name: Content-Type
+          in: header
+          description: ''
+          required: true
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        $ref: '#/components/requestBodies/ollama_chat'
+      servers:
+        - url: http://localhost:11434
+servers: []
+components:
+  schemas:
+    ollama:
+      type: object
+      properties:
+        model:
+          type: string
+        prompt:
+          type: string
+        stream:
+          type: boolean
+        think:
+          type: boolean
+        keep_alive:
+          type: string
+        options:
+          type: object
+          properties:
+            temperature:
+              type: integer
+            num_predict:
+              type: integer
+      example:
+        model: qwen3.5:4b
+        prompt: |-
+          你是一名选择题答题机器人。只返回0、1、2、3中的一个数字，不要解释。
+
+          题目：比9多6的数是（）。
+          0. 16
+          1. 15
+          2. 3
+          3. 10
+        stream: false
+        think: false
+        keep_alive: 30m
+        options:
+          temperature: 0
+          num_predict: 8
+    ollama_chat:
+      type: object
+      properties:
+        model:
+          type: string
+        stream:
+          type: boolean
+        think:
+          type: boolean
+        keep_alive:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+        options:
+          type: object
+          properties:
+            temperature:
+              type: integer
+            num_predict:
+              type: integer
+      example:
+        model: qwen3.5:4b
+        stream: false
+        think: false
+        keep_alive: 30m
+        messages:
+          - role: system
+            content: 你是一名选择题答题机器人。只返回0、1、2、3中的一个数字，不要解释。
+          - role: user
+            content: |-
+              题目：比9多6的数是（）。
+              0. 16
+              1. 15
+              2. 3
+              3. 10
+        options:
+          temperature: 0
+          num_predict: 8
+  requestBodies:
+    ollama:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ollama'
+      description: ''
+      required: true
+    ollama_chat:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ollama_chat'
+      description: ''
+      required: true
+  securitySchemes: {}
