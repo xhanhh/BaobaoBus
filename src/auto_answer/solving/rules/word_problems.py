@@ -38,21 +38,21 @@ _CAPACITY_ITEMS_FIRST = re.compile(
     rf"[^,，。]*?[,，][^。]*?需要"
 )
 _INITIAL_INVENTORY = re.compile(
-    rf"(?:原来有|原有|有|买回来|买来|买了|摘了|采了|"
+    rf"(?:原来有|本来有|原有|有|买回来|买来|买了|摘了|采了|"
     rf"(?:公交车|汽车|车)上有(?:乘客)?)(?P<initial>{NUMBER})"
     r"(?:个|根|块|颗|本|张|只|米|人)"
 )
 _INVENTORY_ACTION = re.compile(
     rf"(?P<verb>吃掉了?|吃了|用了|用去了?|拿走了?|送了|放飞了?|飞走了?|"
-    rf"破了?|爆了?|坏了?|丢了?|损坏了?|"
+    rf"破了?|爆了?|坏了?|丢了?|损坏了?|借走了?|"
     rf"卖了|走了|下了|下车了?|搬走了?|又买了|买来了?|又摘了?|又来了?|"
-    rf"又搬来了?|"
+    rf"又搬来了?|又还回来|还回来了?|"
     rf"增加了?|添了|上了|上车了?)(?P<amount>{NUMBER})"
     r"(?:个|根|块|颗|本|张|只|米)?"
 )
 _NEGATIVE_ACTION = re.compile(
     rf"(?:吃掉了?|吃了|用了|用去了?|拿走了?|送了|放飞了?|飞走了?|"
-    rf"破了?|爆了?|坏了?|丢了?|损坏了?|"
+    rf"破了?|爆了?|坏了?|丢了?|损坏了?|借走了?|"
     rf"卖了|走了|下了|下车了?|搬走了?)"
     rf"(?P<amount>{NUMBER})(?:个|根|块|颗|本|张|只|米)?"
 )
@@ -65,6 +65,8 @@ _POSITIVE_ACTIONS = (
     "又摘",
     "又来",
     "又搬来",
+    "又还回来",
+    "还回来",
     "增加",
     "添了",
     "上了",
@@ -170,6 +172,11 @@ _WEIGHT_INVENTORY = re.compile(
     rf"又买来(?P<added>{NUMBER})千克[,，]"
     rf"现在重(?:\(\)|多少|几)千克"
 )
+_RESOURCE_MAXIMUM = re.compile(
+    rf"做一件[^,，。]*?要用(?P<per>{NUMBER})(?P<unit>米|个|根|张)"
+    rf"[^,，。]*[,，][^0-9]*?(?P<total>{NUMBER})(?P=unit)"
+    rf"[^。]*?最多可以做(?:\(\)|多少|几)件"
+)
 _MINIMUM_TO_EXCEED = re.compile(
     rf"(?P<leader_name>[\u4e00-\u9fff]{{1,4}})(?:做了|有)"
     rf"(?P<leader>{NUMBER})[^,，。]*[,，]"
@@ -264,6 +271,12 @@ def solve_counting_choice(question: Question) -> SolveDecision | None:
 
 
 def solve_word_problem(text: str) -> Decimal | None:
+    resource_maximum = _RESOURCE_MAXIMUM.search(text)
+    if resource_maximum:
+        per = Decimal(resource_maximum.group("per"))
+        total = Decimal(resource_maximum.group("total"))
+        return total // per if total >= 0 and per > 0 else None
+
     age_difference = _AGE_DIFFERENCE.search(text)
     if age_difference:
         younger = Decimal(age_difference.group("younger"))

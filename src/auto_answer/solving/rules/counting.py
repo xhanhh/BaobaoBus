@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
+from itertools import combinations, permutations
 
 from .common import NUMBER
 
@@ -30,10 +31,45 @@ _POSITION_FROM_BOTH_ENDS = re.compile(
     rf"从(?:后面|右)数[^,，。]*?第(?P<back>{NUMBER})(?:个)?.*?"
     rf"(?:一队|这一队|这一排|全队).*?(?:共有|有)(?:\(\)|多少|几)人"
 )
+_DIGITS_FORM_TWO_DIGIT_NUMBERS = re.compile(
+    r"用(?P<digits>\d(?:[,，、]\d)+).*?组成(?:\(\)|多少|几)个不同的两位数"
+)
+_PAIR_SUM_POSSIBILITIES = re.compile(
+    r"用(?P<numbers>\d+(?:[,，、]\d+)+).*?任意两个数求和[,，]"
+    r"得数有(?:\(\)|多少|几)种可能"
+)
+_THREE_STUDENTS_QUEUE = re.compile(
+    r"[\u4e00-\u9fff]+、[\u4e00-\u9fff]+、[\u4e00-\u9fff]+"
+    r"三个同学排队[,，]有(?:\(\)|多少|几)种排法"
+)
 
 
 def solve_counting_problem(text: str) -> Decimal | None:
     """Return a count only when one well-defined counting pattern matches."""
+    digits = _DIGITS_FORM_TWO_DIGIT_NUMBERS.search(text)
+    if digits:
+        values = tuple(int(value) for value in re.split(r"[,，、]", digits.group("digits")))
+        if len(values) != len(set(values)):
+            return None
+        formed = {
+            tens * 10 + ones
+            for tens, ones in permutations(values, 2)
+            if tens != 0
+        }
+        return Decimal(len(formed))
+
+    pair_sums = _PAIR_SUM_POSSIBILITIES.search(text)
+    if pair_sums:
+        values = tuple(
+            int(value) for value in re.split(r"[,，、]", pair_sums.group("numbers"))
+        )
+        if len(values) != len(set(values)) or len(values) < 2:
+            return None
+        return Decimal(len({left + right for left, right in combinations(values, 2)}))
+
+    if _THREE_STUDENTS_QUEUE.search(text):
+        return Decimal(6)
+
     match = _STRICT_BETWEEN_COUNT.search(text)
     if match:
         lower = _integer(match.group("lower"))

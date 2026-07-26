@@ -42,7 +42,17 @@ _EXPRESSION_IN_CHINESE_DECADE = re.compile(
     r"(?:哪道题|哪个算式).*?得数是(?P<digit>[一二三四五六七八九])十多"
 )
 _EQUIVALENT_EXPRESSION = re.compile(
-    rf"与(?P<target>{EXPRESSION})(?:的)?(?:结果|得数)(?:相等|相同)"
+    rf"(?:与|和)(?:算式)?(?P<target>{EXPRESSION})(?:的)?(?:结果|得数)(?:相等|相同)"
+)
+_REWRITE_EXPRESSION = re.compile(
+    rf"(?P<target>{EXPRESSION})(?:可以|能)?改写成"
+)
+_NOT_EQUIVALENT_EXPRESSION = re.compile(
+    rf"(?:与|和)(?:算式)?(?P<target>{EXPRESSION})(?:的)?"
+    rf"(?:结果|得数)(?:不相等|不同)"
+)
+_CANNOT_REPRESENT_EXPRESSION = re.compile(
+    rf"算式不可以用[“\"']?(?P<target>{EXPRESSION})[”\"']?表示"
 )
 _EXPRESSION_NEAR_THRESHOLD = re.compile(
     rf"得数比?(?P<threshold>{NUMBER})(?P<direction>小一些|小一点|大一些|大一点)"
@@ -271,8 +281,11 @@ def solve_option_expression(question: Question) -> SolveDecision | None:
         return None
 
     equivalent = _EQUIVALENT_EXPRESSION.search(question.text)
-    if equivalent:
-        target = evaluate_expression(equivalent.group("target"))
+    rewrite = _REWRITE_EXPRESSION.search(question.text)
+    if equivalent or rewrite:
+        matched = equivalent or rewrite
+        assert matched is not None
+        target = evaluate_expression(matched.group("target"))
         if target is None:
             return None
         matches = [
@@ -283,6 +296,25 @@ def solve_option_expression(question: Question) -> SolveDecision | None:
                 matches[0],
                 "rule",
                 f"equivalent option expression: {target}",
+            )
+        return None
+
+    not_equivalent = _NOT_EQUIVALENT_EXPRESSION.search(question.text)
+    cannot_represent = _CANNOT_REPRESENT_EXPRESSION.search(question.text)
+    if not_equivalent or cannot_represent:
+        matched = not_equivalent or cannot_represent
+        assert matched is not None
+        target = evaluate_expression(matched.group("target"))
+        if target is None:
+            return None
+        matches = [
+            index for index, value in enumerate(numeric_values) if value != target
+        ]
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"non-equivalent option expression: {target}",
             )
         return None
 

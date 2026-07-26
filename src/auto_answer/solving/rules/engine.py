@@ -17,7 +17,9 @@ from .arithmetic import (
 from .common import match_unique, parse_number
 from .counting import solve_counting_problem
 from .curriculum import solve_curriculum_template
+from .geometry_measurement import solve_geometry_measurement
 from .money import solve_money
+from .multiplication import solve_multiplication_concept
 from .number_concepts import (
     solve_counter_two_digit_extreme,
     solve_number_neighbor,
@@ -58,6 +60,10 @@ class RuleEngine:
         if decision is not None:
             return decision
 
+        decision = solve_geometry_measurement(question)
+        if decision is not None:
+            return decision
+
         decision = solve_comparison_symbol(question)
         if decision is not None:
             return decision
@@ -67,6 +73,10 @@ class RuleEngine:
             return decision
 
         decision = solve_operation_change(question)
+        if decision is not None:
+            return decision
+
+        decision = solve_multiplication_concept(question)
         if decision is not None:
             return decision
 

@@ -61,9 +61,9 @@ _PACK_EQUAL_GROUPS = re.compile(
     rf"[^,，。]*[,，](?:可以|能)装{_BLANK}(?:袋|盒|笼)"
 )
 _CAPACITY_CEILING = re.compile(
-    rf"(?:有|一共有)(?P<total>{NUMBER})[^,，。]*?(?:坐船|乘车)"
-    rf"[,，]一(?:条船|辆车)最多(?:坐|容纳)(?P<per>{NUMBER})人"
-    rf"[,，][^。]*?至少需要{_BLANK}(?:条船|辆车)"
+    rf"(?:有|一共有)?(?P<total>{NUMBER})[^,，。]*?(?:坐船|乘车)"
+    rf"[,，](?:每|一)(?:条船|辆车)(?:最多|限)(?:坐|乘|容纳)(?P<per>{NUMBER})人"
+    rf"[,，][^。]*?(?:至少|最少)需要{_BLANK}(?:条船|辆车)"
 )
 _REPEATED_ADDITION = re.compile(
     rf"(?P<value>{NUMBER})连续加(?P<times>{NUMBER})次[,，]和是{_BLANK}"

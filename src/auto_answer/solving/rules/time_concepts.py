@@ -18,7 +18,7 @@ _ELAPSED_HOURS = re.compile(
     rf"(?:后|经过)(?:\(\)|多少|几)小时"
 )
 _CLOCK_BETWEEN_HOURS = re.compile(
-    rf"时针指在(?P<hour>{NUMBER})和(?P<next_hour>{NUMBER})之间[,，]"
+    rf"时针(?:指)?在(?P<hour>{NUMBER})和(?P<next_hour>{NUMBER})之间[,，]"
     rf"分针指(?:着)?(?P<minute_pointer>{NUMBER})"
 )
 _DIGITAL_TIME = re.compile(
@@ -50,10 +50,46 @@ _HOURS_AGO = re.compile(
     rf"现在是(?:上午|下午|晚上)?(?P<hour>{NUMBER})时[,，]"
     rf"(?P<elapsed>{NUMBER})小时前是(?:\(\)|多少|几)时"
 )
+_QUARTER_HOUR_LATER = re.compile(
+    rf"(?:现在是|[\u4e00-\u9fff]+)?"
+    rf"(?P<hour>{NUMBER})(?::|时)(?P<minute>{NUMBER})(?:分)?"
+    rf".*?(?:过一刻钟|一刻钟后)"
+)
+_QUARTER_HOUR_IS = re.compile(r"^一刻钟是(?:\(\)|多少|几)")
 
 
 def solve_time(question: Question) -> SolveDecision | None:
     values = tuple(parse_number(option) for option in question.options)
+
+    if _QUARTER_HOUR_IS.search(question.text):
+        matches = [
+            index
+            for index, option in enumerate(question.options)
+            if option in {"15分", "15分钟"}
+        ]
+        if len(matches) == 1:
+            return SolveDecision(matches[0], "rule", "quarter hour: 15 minutes")
+        return None
+
+    quarter_later = _QUARTER_HOUR_LATER.search(question.text)
+    if quarter_later:
+        hour = int(Decimal(quarter_later.group("hour")))
+        minute = int(Decimal(quarter_later.group("minute")))
+        if not 0 <= hour < 24 or not 0 <= minute < 60:
+            return None
+        total_minutes = (hour * 60 + minute + 15) % (24 * 60)
+        matches = [
+            index
+            for index, option in enumerate(question.options)
+            if _option_minutes(option) == total_minutes
+        ]
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"quarter hour later: {total_minutes // 60:02d}:{total_minutes % 60:02d}",
+            )
+        return None
 
     if _MINUTE_CIRCLE_HOUR_GRIDS.search(question.text):
         return match_unique(Decimal(1), values, "minute circle to hour-hand grid")

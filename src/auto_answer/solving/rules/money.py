@@ -55,9 +55,29 @@ _TWO_COIN_DENOMINATIONS = re.compile(
     rf"其中(?P=first_value)(?P=first_unit)硬币有(?P<first_count>{NUMBER})枚[,，]"
     rf"(?P=second_value)(?P=second_unit)硬币有(?:\(\)|多少|几)枚"
 )
+_MAXIMUM_AFFORDABLE = re.compile(
+    rf"(?:一本|一件|一个|一支)[^,，。]*?(?P<price>{NUMBER})元[,，]"
+    rf"[^,，。]*?(?:拿着|有)(?P<budget>{NUMBER})元"
+    rf"[^。]*?最多能买(?:\(\)|多少|几)(?:本|件|个|支)"
+)
 
 
 def solve_money(question: Question) -> SolveDecision | None:
+    maximum = _MAXIMUM_AFFORDABLE.search(question.text)
+    if maximum:
+        price = Decimal(maximum.group("price"))
+        budget = Decimal(maximum.group("budget"))
+        target = budget // price if budget >= 0 and price > 0 else Decimal(-1)
+        values = tuple(
+            Decimal(option) if re.fullmatch(NUMBER, option) else None
+            for option in question.options
+        )
+        return (
+            _match_numeric_choice(target, values, "maximum affordable count")
+            if target >= 0
+            else None
+        )
+
     coins = _TWO_COIN_DENOMINATIONS.search(question.text)
     if coins:
         first_value = _amount_to_jiao(
