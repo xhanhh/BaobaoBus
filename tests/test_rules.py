@@ -1064,3 +1064,200 @@ def test_ambiguous_rule_returns_none() -> None:
 
 def test_duplicate_matching_options_returns_none() -> None:
     assert RuleEngine().solve(question("2+2=?", ("4", "4", "3", "5"))) is None
+
+
+def test_age_difference_between_siblings() -> None:
+    result = RuleEngine().solve(
+        question(
+            "我今年6岁,姐姐15岁,姐姐比我大几岁?",
+            ("6", "8", "7", "9"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_quantity_times_unit_price_then_change() -> None:
+    result = RuleEngine().solve(
+        question(
+            "妈妈买了3斤苹果,每斤4元,付了20元,应找回()元.",
+            ("8", "16", "12", "7"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_clock_hands_overlap_at_whole_hour() -> None:
+    result = RuleEngine().solve(
+        question(
+            "()时整,分针和时针重合在一起.",
+            ("6", "12", "3", "9"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_weight_inventory_with_consumption_and_restock() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一袋大米重10千克,吃了3千克,又买来4千克,现在重()千克.",
+            ("11", "7", "14", "13"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_available_money_minus_single_item_price() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小华有30元钱,买了一个书包25元,应找回()元.",
+            ("5", "10", "15", "55"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_people_behind_accepts_ge_ren_wording() -> None:
+    result = RuleEngine().solve(
+        question(
+            "10个同学排队做操,小明前面有8个人,后面有()个人.",
+            ("3", "1", "2", "0"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_direct_ones_and_tens_digits() -> None:
+    result = RuleEngine().solve(
+        question(
+            "个位上是7,十位上是1,这个数是().",
+            ("71", "17", "6", "8"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_consecutive_natural_numbers_are_solved_before_generic_extreme() -> None:
+    result = RuleEngine().solve(
+        question(
+            "有10个连续的自然数,它们的和是45,其中最大的数是().",
+            ("7", "10", "9", "8"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "consecutive natural numbers: 9"
+
+
+def test_minute_hand_large_grid_to_second_hand_rotations() -> None:
+    result = RuleEngine().solve(
+        question(
+            "分针走1大格,秒针走()圈.",
+            ("10", "1", "5", "60"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_minimum_additional_amount_to_exceed() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小丽做了14朵花,小明做了6朵.小明至少还要做()朵,才能超过小丽?",
+            ("10朵", "8朵", "7朵", "9朵"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_option_expression_result_in_seventies() -> None:
+    result = RuleEngine().solve(
+        question(
+            "哪道题的得数是七十多?()",
+            ("74+8", "63+6", "73+7", "64+8"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_mixed_yuan_jiao_subtraction() -> None:
+    result = RuleEngine().solve(
+        question(
+            "1元-4角=()角.",
+            ("5", "4", "10", "6"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_maximum_two_digit_number_with_digit_sum() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个两位数,个位和十位上的数字和是8,这个数最大是().",
+            ("71", "62", "88", "80"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_container_weight_after_half_contents_used() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一桶油连桶重12千克,用去一半油后,连桶重7千克,桶重()千克.",
+            ("2", "10", "4", "5"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_count_of_ones_making_ten() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个一个地数,()个一是10.",
+            ("1", "10", "100", "20"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_movie_end_time_with_hours_and_minutes() -> None:
+    result = RuleEngine().solve(
+        question(
+            "今晚电影7时开始,电影时长1小时30分,结束时间是().",
+            ("8时", "08:30:00", "9时", "07:30:00"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_two_basket_remainder() -> None:
+    result = RuleEngine().solve(
+        question(
+            "有14个苹果,放在两个篮子里,一个篮子放8个,另一个篮子放()个.",
+            ("8", "10", "6", "22"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_contextual_largest_number_does_not_select_largest_option() -> None:
+    assert RuleEngine().solve(
+        question(
+            "若干个连续自然数的和已知,其中最大的数是().",
+            ("7", "10", "9", "8"),
+        )
+    ) is None

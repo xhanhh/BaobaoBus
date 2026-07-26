@@ -34,6 +34,25 @@ _ONES_TO_TENS_COMPARE = re.compile(
 _COUNTED_PLACE_UNITS = re.compile(
     rf"(?P<count>{NUMBER})个(?P<place>一|十|百|千)是(?:\(\)|多少|几)"
 )
+_PLACE_UNITS_MAKE_TOTAL = re.compile(
+    rf"(?:\(\)|多少|几)个(?P<place>一|十|百|千)是(?P<total>{NUMBER})"
+)
+_DIRECT_ONES_TENS = re.compile(
+    rf"个位上(?:的数字)?是(?P<ones>{NUMBER}).*?"
+    rf"十位上(?:的数字)?是(?P<tens>{NUMBER}).*?这个数"
+)
+_DIRECT_TENS_ONES = re.compile(
+    rf"十位上(?:的数字)?是(?P<tens>{NUMBER}).*?"
+    rf"个位上(?:的数字)?是(?P<ones>{NUMBER}).*?这个数"
+)
+_DIGIT_SUM_EXTREME = re.compile(
+    rf"(?:个位和十位|十位和个位)(?:上)?的数字(?:的)?和是(?P<sum>{NUMBER}).*?"
+    rf"这个数(?P<direction>最大|最小)"
+)
+_CONSECUTIVE_NATURAL_SUM = re.compile(
+    rf"有(?P<count>{NUMBER})个连续的自然数.*?和是(?P<sum>{NUMBER}).*?"
+    rf"其中(?P<direction>最大|最小)的数"
+)
 _SAME_DIGITS_WITH_LOWER_BOUND = re.compile(
     rf"个位和十位上的数字相同.*?比(?P<lower>{NUMBER})大"
 )
@@ -89,6 +108,74 @@ def solve_place_value_number(
 ) -> SolveDecision | None:
     if _EXTREME_DIGIT_SUM.search(text):
         return match_unique(Decimal(19), values, "extreme digit sum")
+
+    consecutive = _CONSECUTIVE_NATURAL_SUM.search(text)
+    if consecutive:
+        count = Decimal(consecutive.group("count"))
+        total = Decimal(consecutive.group("sum"))
+        if (
+            count != count.to_integral_value()
+            or count <= 0
+            or total != total.to_integral_value()
+        ):
+            return None
+        first = total / count - (count - 1) / 2
+        if first != first.to_integral_value() or first < 0:
+            return None
+        first = first.to_integral_value()
+        target = (
+            first + count - 1
+            if consecutive.group("direction") == "最大"
+            else first
+        )
+        return match_unique(target, values, "consecutive natural numbers")
+
+    digit_sum = _DIGIT_SUM_EXTREME.search(text)
+    if digit_sum:
+        total = Decimal(digit_sum.group("sum"))
+        if total != total.to_integral_value() or not 1 <= total <= 18:
+            return None
+        if digit_sum.group("direction") == "最大":
+            tens = min(Decimal(9), total)
+        else:
+            tens = max(Decimal(1), total - 9)
+        ones = total - tens
+        return match_unique(
+            tens * 10 + ones,
+            values,
+            f"{digit_sum.group('direction')} two-digit number with digit sum",
+        )
+
+    direct = _DIRECT_ONES_TENS.search(text) or _DIRECT_TENS_ONES.search(text)
+    if direct:
+        tens = Decimal(direct.group("tens"))
+        ones = Decimal(direct.group("ones"))
+        if (
+            tens == tens.to_integral_value()
+            and ones == ones.to_integral_value()
+            and 1 <= tens <= 9
+            and 0 <= ones <= 9
+        ):
+            return match_unique(
+                tens * 10 + ones,
+                values,
+                "direct two-digit place value",
+            )
+        return None
+
+    place_units = _PLACE_UNITS_MAKE_TOTAL.search(text)
+    if place_units:
+        total = Decimal(place_units.group("total"))
+        multiplier = {
+            "一": Decimal(1),
+            "十": Decimal(10),
+            "百": Decimal(100),
+            "千": Decimal(1000),
+        }[place_units.group("place")]
+        count, remainder = divmod(total, multiplier)
+        if total < 0 or remainder:
+            return None
+        return match_unique(count, values, "place units making total")
 
     same_digits = _SAME_DIGITS_WITH_LOWER_BOUND.search(text)
     if same_digits and all(value is not None for value in values):

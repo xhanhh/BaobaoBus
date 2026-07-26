@@ -22,10 +22,14 @@ _BINARY_OPERATORS: dict[type[ast.operator], Callable[[Decimal, Decimal], Decimal
 
 def parse_number(value: str) -> Decimal | None:
     cleaned = value.strip().rstrip(".。")
-    if re.fullmatch(NUMBER, cleaned) is None:
+    match = re.fullmatch(
+        rf"(?P<number>{NUMBER})(?:个|朵|人|块|根|本|张|只|千克|斤|米|岁)?",
+        cleaned,
+    )
+    if match is None:
         return None
     try:
-        return Decimal(cleaned)
+        return Decimal(match.group("number"))
     except InvalidOperation:
         return None
 

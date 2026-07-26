@@ -24,9 +24,66 @@ _CLOCK_BETWEEN_HOURS = re.compile(
 _DIGITAL_TIME = re.compile(
     r"(?P<hour>\d{2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?"
 )
+_CLOCK_OVERLAP_AT_HOUR = re.compile(
+    r"(?:\(\)|多少|几)时整.*?分针和时针重合(?:在一起)?"
+)
+_MINUTE_HAND_LARGE_GRIDS = re.compile(
+    rf"分针走(?P<grids>{NUMBER})大格.*?秒针走(?:\(\)|多少|几)圈"
+)
+_MOVIE_END_TIME = re.compile(
+    rf"电影(?P<start_hour>{NUMBER})时"
+    rf"(?:(?P<start_minute>{NUMBER})分)?开始.*?"
+    rf"时长(?:(?P<hours>{NUMBER})小时)?"
+    rf"(?:(?P<minutes>{NUMBER})分(?:钟)?)?.*?结束时间"
+)
+_HOUR_MINUTE_OPTION = re.compile(
+    rf"(?P<hour>{NUMBER})时(?:(?P<minute>{NUMBER})分)?"
+)
 
 
 def solve_time(question: Question) -> SolveDecision | None:
+    if _CLOCK_OVERLAP_AT_HOUR.search(question.text):
+        values = tuple(parse_number(option) for option in question.options)
+        return match_unique(Decimal(12), values, "clock hands overlap at whole hour")
+
+    large_grids = _MINUTE_HAND_LARGE_GRIDS.search(question.text)
+    if large_grids:
+        grids = Decimal(large_grids.group("grids"))
+        if grids < 0:
+            return None
+        values = tuple(parse_number(option) for option in question.options)
+        return match_unique(grids * 5, values, "second-hand rotations")
+
+    movie = _MOVIE_END_TIME.search(question.text)
+    if movie and (movie.group("hours") or movie.group("minutes")):
+        start_hour = Decimal(movie.group("start_hour"))
+        start_minute = Decimal(movie.group("start_minute") or "0")
+        hours = Decimal(movie.group("hours") or "0")
+        minutes = Decimal(movie.group("minutes") or "0")
+        if any(
+            value != value.to_integral_value() or value < 0
+            for value in (start_hour, start_minute, hours, minutes)
+        ):
+            return None
+        total_minutes = (
+            int(start_hour) * 60
+            + int(start_minute)
+            + int(hours) * 60
+            + int(minutes)
+        ) % (24 * 60)
+        matches = [
+            index
+            for index, option in enumerate(question.options)
+            if _option_minutes(option) == total_minutes
+        ]
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"movie end time: {total_minutes // 60:02d}:{total_minutes % 60:02d}",
+            )
+        return None
+
     between = _CLOCK_BETWEEN_HOURS.search(question.text)
     if between:
         hour = int(Decimal(between.group("hour")))
@@ -82,3 +139,21 @@ def solve_time(question: Question) -> SolveDecision | None:
         values = tuple(parse_number(option) for option in question.options)
         return match_unique(end - start, values, "elapsed hours")
     return None
+
+
+def _option_minutes(option: str) -> int | None:
+    digital = _DIGITAL_TIME.fullmatch(option)
+    if digital is not None:
+        if int(digital.group("second") or "0") != 0:
+            return None
+        hour = int(digital.group("hour"))
+        minute = int(digital.group("minute"))
+    else:
+        hour_minute = _HOUR_MINUTE_OPTION.fullmatch(option)
+        if hour_minute is None:
+            return None
+        hour = int(Decimal(hour_minute.group("hour")))
+        minute = int(Decimal(hour_minute.group("minute") or "0"))
+    if not 0 <= hour < 24 or not 0 <= minute < 60:
+        return None
+    return hour * 60 + minute

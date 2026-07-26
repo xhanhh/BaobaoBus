@@ -89,8 +89,8 @@ _CORRECT_REMAINING_EQUATION = re.compile(
 )
 _PEOPLE_BEHIND = re.compile(
     rf"(?P<total>{NUMBER})个[^,，。]*?(?:排队|排成一排)[^,，。]*[,，]"
-    rf"[^,，。]*?前面有(?P<front>{NUMBER})人[^,，。]*[,，]"
-    rf"[^,，。]*?后面有(?:\(\)|多少|几)"
+    rf"[^,，。]*?前面有(?P<front>{NUMBER})(?:个)?人[^,，。]*[,，]"
+    rf"[^,，。]*?后面有(?:\(\)|多少|几)(?:个)?人?"
 )
 _EAGLE_CATCHING_CHICKS = re.compile(
     rf"(?P<total>{NUMBER})个小朋友玩老鹰捉小鸡.*?"
@@ -144,6 +144,38 @@ _RIGHT_SIDE_COUNT = re.compile(
     rf"(?P<total>{NUMBER})个同学排队[^,，。]*[,，]"
     rf"[^,，。]*?左边有(?P<left>{NUMBER})人[^,，。]*[,，]"
     rf"(?:他|她)?右边有(?:\(\)|多少|几)人"
+)
+_AGE_DIFFERENCE = re.compile(
+    rf"(?P<younger_name>[\u4e00-\u9fff]{{1,4}})(?:今年)?"
+    rf"(?P<younger>{NUMBER})岁[,，]"
+    rf"(?P<older_name>[\u4e00-\u9fff]{{1,4}})(?P<older>{NUMBER})岁[,，]"
+    rf"(?P=older_name)比(?P=younger_name)大(?:\(\)|多少|几)岁"
+)
+_WEIGHT_INVENTORY = re.compile(
+    rf"重(?P<initial>{NUMBER})千克[,，]"
+    rf"吃了(?P<used>{NUMBER})千克[,，]"
+    rf"又买来(?P<added>{NUMBER})千克[,，]"
+    rf"现在重(?:\(\)|多少|几)千克"
+)
+_MINIMUM_TO_EXCEED = re.compile(
+    rf"(?P<leader_name>[\u4e00-\u9fff]{{1,4}})(?:做了|有)"
+    rf"(?P<leader>{NUMBER})[^,，。]*[,，]"
+    rf"(?P<trailer_name>[\u4e00-\u9fff]{{1,4}})(?:做了|有)"
+    rf"(?P<trailer>{NUMBER})[^。]*?"
+    rf"(?P=trailer_name)至少还要(?:做|得|拿|增加)"
+    rf"(?:\(\)|多少|几)[^。]*?才能超过(?P=leader_name)"
+)
+_TWO_CONTAINER_REMAINDER = re.compile(
+    rf"有(?P<total>{NUMBER})个[^,，。]*[,，]"
+    rf"放在两个(?P<container>篮子|盒子|袋子)里[,，]"
+    rf"一个(?P=container)放(?P<first>{NUMBER})个[,，]"
+    rf"另一个(?P=container)放(?:\(\)|多少|几)个"
+)
+_HALF_CONTENT_CONTAINER_WEIGHT = re.compile(
+    rf"连(?P<container>桶|筐|盒)重(?P<full>{NUMBER})千克[,，]"
+    rf"用去一半[^,，。]*后[,，]"
+    rf"连(?P=container)重(?P<half>{NUMBER})千克[,，]"
+    rf"(?P=container)重(?:\(\)|多少|几)千克"
 )
 
 
@@ -219,6 +251,42 @@ def solve_counting_choice(question: Question) -> SolveDecision | None:
 
 
 def solve_word_problem(text: str) -> Decimal | None:
+    age_difference = _AGE_DIFFERENCE.search(text)
+    if age_difference:
+        younger = Decimal(age_difference.group("younger"))
+        older = Decimal(age_difference.group("older"))
+        difference = older - younger
+        return difference if younger >= 0 and difference >= 0 else None
+
+    weight_inventory = _WEIGHT_INVENTORY.search(text)
+    if weight_inventory:
+        initial = Decimal(weight_inventory.group("initial"))
+        used = Decimal(weight_inventory.group("used"))
+        added = Decimal(weight_inventory.group("added"))
+        target = initial - used + added
+        return target if initial >= used >= 0 and added >= 0 else None
+
+    minimum_to_exceed = _MINIMUM_TO_EXCEED.search(text)
+    if minimum_to_exceed:
+        leader = Decimal(minimum_to_exceed.group("leader"))
+        trailer = Decimal(minimum_to_exceed.group("trailer"))
+        needed = leader - trailer + 1
+        return needed if leader >= trailer >= 0 else None
+
+    two_containers = _TWO_CONTAINER_REMAINDER.search(text)
+    if two_containers:
+        total = Decimal(two_containers.group("total"))
+        first = Decimal(two_containers.group("first"))
+        remaining = total - first
+        return remaining if total >= first >= 0 else None
+
+    half_content = _HALF_CONTENT_CONTAINER_WEIGHT.search(text)
+    if half_content:
+        full = Decimal(half_content.group("full"))
+        half = Decimal(half_content.group("half"))
+        container = half * 2 - full
+        return container if full >= half >= 0 and container >= 0 else None
+
     repeated_subtraction = _REPEATED_SUBTRACTION_TO_ZERO.search(text)
     if repeated_subtraction:
         total = Decimal(repeated_subtraction.group("total"))

@@ -37,7 +37,9 @@ _SYMBOL_OPERATORS: dict[str, Callable[[Decimal, Decimal], Decimal]] = {
 _DIRECT_EXTREME_QUESTION = re.compile(
     r"(?:下面|下列|这些|哪个|哪一个|四个选项).*?"
     r"(?:最大|最小|最多|最少|最高|最低)"
-    r"|(?:最大|最小|最高|最低)(?:的)?(?:数|数字)(?:是|为|有)"
+)
+_EXPRESSION_IN_CHINESE_DECADE = re.compile(
+    r"(?:哪道题|哪个算式).*?得数是(?P<digit>[一二三四五六七八九])十多"
 )
 _EQUIVALENT_EXPRESSION = re.compile(
     rf"与(?P<target>{EXPRESSION})(?:的)?(?:结果|得数)(?:相等|相同)"
@@ -192,6 +194,34 @@ def solve_option_expression(question: Question) -> SolveDecision | None:
     if any(value is None for value in values):
         return None
     numeric_values = tuple(value for value in values if value is not None)
+
+    chinese_decade = _EXPRESSION_IN_CHINESE_DECADE.search(question.text)
+    if chinese_decade:
+        tens = {
+            "一": 1,
+            "二": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+        }[chinese_decade.group("digit")]
+        lower = Decimal(tens * 10)
+        upper = lower + 10
+        matches = [
+            index
+            for index, value in enumerate(numeric_values)
+            if lower < value < upper
+        ]
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"option expression in {tens * 10}s: {numeric_values[matches[0]]}",
+            )
+        return None
 
     choose_max = "得数最大" in question.text
     choose_min = "得数最小" in question.text
