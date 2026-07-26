@@ -31,7 +31,7 @@ class _AliyunWorkspaceRedactionFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
         redacted = _ALIYUN_WORKSPACE_HOST.sub(
-            r"https://workspace\g<suffix>",
+            r"https://workspace-id\g<suffix>",
             message,
         )
         if redacted != message:

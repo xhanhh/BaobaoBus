@@ -129,6 +129,53 @@ def test_high_confidence_templates_from_aliyun_run_use_local_rules() -> None:
         assert result.answer_index == expected_index, text
 
 
+def test_digit_occurrences_in_inclusive_range() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小华从1写到50,一共写了()个数字“5”.",
+            ("10", "5", "6", "1"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "digit occurrences in inclusive range: 6"
+
+
+def test_zero_occurrences_do_not_count_leading_zeroes() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小华从1写到100,一共写了()个数字“0”.",
+            ("10", "11", "20", "1"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_transfer_with_nonzero_remaining_difference() -> None:
+    result = RuleEngine().solve(
+        question(
+            "哥哥有15本书,弟弟有9本书,哥哥给弟弟()本,"
+            "哥哥还比弟弟多2本.",
+            ("4", "2", "6", "3"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "word arithmetic: 2"
+
+
+def test_transfer_with_impossible_fractional_count_returns_none() -> None:
+    result = RuleEngine().solve(
+        question(
+            "哥哥有14本书,弟弟有9本书,哥哥给弟弟()本,"
+            "哥哥还比弟弟多2本.",
+            ("1", "2", "3", "4"),
+        )
+    )
+    assert result is None
+
+
 def test_more_than_word_problem_matches_unique_option() -> None:
     result = RuleEngine().solve(question("比9多6的数是()", ("16", "15", "3", "10")))
     assert result is not None

@@ -78,6 +78,11 @@ _NUMBER_AND_LATER = re.compile(
 _NUMBER_PAIR_OPTION = re.compile(
     rf"(?P<first>{NUMBER})(?:和|、|,)(?P<second>{NUMBER})"
 )
+_DIGIT_OCCURRENCES_IN_RANGE = re.compile(
+    rf"从(?P<start>{NUMBER})写到(?P<end>{NUMBER})[,，]"
+    rf"一共写了(?:\(\)|多少|几)个数字[“”\"']?"
+    rf"(?P<digit>\d)[“”\"']?"
+)
 
 
 def solve_number_neighbor(
@@ -159,6 +164,28 @@ def solve_place_value_number(
     text: str,
     values: tuple[Decimal | None, ...],
 ) -> SolveDecision | None:
+    occurrences = _DIGIT_OCCURRENCES_IN_RANGE.search(text)
+    if occurrences:
+        start = Decimal(occurrences.group("start"))
+        end = Decimal(occurrences.group("end"))
+        if (
+            start != start.to_integral_value()
+            or end != end.to_integral_value()
+            or start < 0
+            or end < start
+        ):
+            return None
+        digit = int(occurrences.group("digit"))
+        target = _count_digit_through(int(end), digit) - _count_digit_through(
+            int(start) - 1,
+            digit,
+        )
+        return match_unique(
+            Decimal(target),
+            values,
+            "digit occurrences in inclusive range",
+        )
+
     relation = _TWO_DIGIT_RELATION_CHOICE.search(text)
     if relation and all(value is not None for value in values):
         delta = Decimal(relation.group("delta"))
@@ -349,3 +376,31 @@ def solve_place_value_number(
 
 def _tens_digit(value: str) -> Decimal:
     return Decimal(9) if value == "最大的一位数" else Decimal(value)
+
+
+def _count_digit_through(limit: int, digit: int) -> int:
+    """Count one decimal digit in the usual representations of 0..limit."""
+    if limit < 0:
+        return 0
+    if limit == 0:
+        return 1 if digit == 0 else 0
+
+    count = 1 if digit == 0 else 0  # The representation of the number zero.
+    factor = 1
+    while factor <= limit:
+        lower = limit % factor
+        current = (limit // factor) % 10
+        higher = limit // (factor * 10)
+        if digit == 0:
+            if higher == 0:
+                break
+            count += (higher - 1) * factor
+            count += lower + 1 if current == 0 else factor
+        else:
+            count += higher * factor
+            if current > digit:
+                count += factor
+            elif current == digit:
+                count += lower + 1
+        factor *= 10
+    return count

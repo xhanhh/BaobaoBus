@@ -106,6 +106,16 @@ _EQUAL_TRANSFER = re.compile(
     rf"(?P<giver>[\u4e00-\u9fff]{{1,4}})给(?P<receiver>[\u4e00-\u9fff]{{1,4}})"
     rf"(?:\(\)|多少|几)[^,，。]*[,，].*?(?:一样多|相等)"
 )
+_TRANSFER_WITH_REMAINING_DIFFERENCE = re.compile(
+    rf"(?P<first_name>[\u4e00-\u9fff]{{1,4}})有(?P<first>{NUMBER})"
+    rf"(?P<unit>个|本|张|支|颗|元)[^,，。]*[,，]"
+    rf"(?P<second_name>[\u4e00-\u9fff]{{1,4}})有(?P<second>{NUMBER})"
+    rf"(?P=unit)[^,，。]*[,，]"
+    rf"(?P<giver>[\u4e00-\u9fff]{{1,4}})给"
+    rf"(?P<receiver>[\u4e00-\u9fff]{{1,4}})(?:\(\)|多少|几)(?P=unit)"
+    rf"[,，](?P=giver)还比(?P=receiver)"
+    rf"(?P<direction>多|少)(?P<remaining>{NUMBER})(?P=unit)"
+)
 _REVERSE_DIFFERENCE = re.compile(
     rf"(?P<larger>{NUMBER})比(?:\(\)|多少|几)(?P<direction>多|少)"
     rf"(?P<delta>{NUMBER})"
@@ -340,6 +350,37 @@ def solve_word_problem(text: str) -> Decimal | None:
 
     if _POWER_OUTAGE_LIGHTS.search(text):
         return Decimal()
+
+    remaining_difference = _TRANSFER_WITH_REMAINING_DIFFERENCE.search(text)
+    if remaining_difference:
+        first = Decimal(remaining_difference.group("first"))
+        second = Decimal(remaining_difference.group("second"))
+        giver = remaining_difference.group("giver")
+        receiver = remaining_difference.group("receiver")
+        if (
+            giver == remaining_difference.group("first_name")
+            and receiver == remaining_difference.group("second_name")
+        ):
+            initial_difference = first - second
+        elif (
+            giver == remaining_difference.group("second_name")
+            and receiver == remaining_difference.group("first_name")
+        ):
+            initial_difference = second - first
+        else:
+            return None
+        desired_difference = Decimal(remaining_difference.group("remaining"))
+        if remaining_difference.group("direction") == "少":
+            desired_difference = -desired_difference
+        transfer = (initial_difference - desired_difference) / 2
+        if (
+            first < 0
+            or second < 0
+            or transfer < 0
+            or transfer != transfer.to_integral_value()
+        ):
+            return None
+        return transfer
 
     eagle_game = _EAGLE_CATCHING_CHICKS.search(text)
     if eagle_game:
