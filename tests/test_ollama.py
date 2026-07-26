@@ -80,6 +80,23 @@ def test_structured_numeric_answer_strips_equation_side_whitespace() -> None:
     assert calculation == "15 + (15 - 7) = 23"
 
 
+def test_structured_numeric_answer_accepts_valid_equation_chain() -> None:
+    index, calculation = parse_structured_numeric_answer(
+        '{"calculation":"6+4=10, 10+5=15","answer_value":15,"answer_index":1}',
+        ("10", "15", "11", "14"),
+    )
+    assert index == 1
+    assert calculation == "6+4=10, 10+5=15"
+
+
+def test_structured_numeric_answer_rejects_false_equation_in_chain() -> None:
+    with pytest.raises(SolverError):
+        parse_structured_numeric_answer(
+            '{"calculation":"6+4=11, 10+5=15","answer_value":15,"answer_index":1}',
+            ("10", "15", "11", "14"),
+        )
+
+
 @pytest.mark.parametrize(
     "content",
     [

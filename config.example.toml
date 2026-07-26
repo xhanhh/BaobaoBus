@@ -143,6 +143,11 @@ min_white_ratio = 0.55
 max_capture_failures = 3
 # Start OCR one confirmation frame early, then validate against a fresh frame.
 overlap_ocr_with_stability = true
+# Skip heavyweight title OCR while the white "第 X 题" text is faded out.
+title_white_pixel_threshold = 210
+title_min_white_ratio = 0.02
+# Periodic forced probe prevents a bad visibility threshold from blocking forever.
+title_probe_interval_seconds = 0.75
 
 [debug]
 enabled = true

@@ -110,6 +110,7 @@ class PageStateDetector:
         self._last_question_number: int | None = None
         self._last_question_seen_at = 0.0
         self._last_title_warning_at = 0.0
+        self._last_title_attempt_at = 0.0
         self._logger = logging.getLogger(__name__)
 
     def observe(
@@ -131,20 +132,32 @@ class PageStateDetector:
         now = time.monotonic()
 
         # White boxes are a cheap gate. Avoid running title OCR on obvious non-question pages.
-        attempted_title_ocr = boxes_present and (
+        title_ocr_needed = boxes_present and (
             force_title_ocr
             or self._last_question_number is None
             or now - self._last_question_seen_at
             > self._config.question_number_cache_seconds
         )
+        title_image = crop_for_state(frame, self._regions.question_number)
+        title_visible = (
+            white_pixel_ratio(
+                title_image,
+                self._config.title_white_pixel_threshold,
+            )
+            >= self._config.title_min_white_ratio
+        )
+        probe_due = (
+            now - self._last_title_attempt_at
+            >= self._config.title_probe_interval_seconds
+        )
+        attempted_title_ocr = title_ocr_needed and (title_visible or probe_due)
         if attempted_title_ocr:
+            self._last_title_attempt_at = now
             try:
-                title_result = self._title_reader(
-                    crop_for_state(frame, self._regions.question_number)
-                )
+                title_result = self._title_reader(title_image)
             except OCRError as exc:
                 if now - self._last_title_warning_at >= 2.0:
-                    self._logger.warning("question number OCR temporarily failed: %s", exc)
+                    self._logger.debug("question number OCR temporarily failed: %s", exc)
                     self._last_title_warning_at = now
             else:
                 title_text = title_result.text
@@ -153,7 +166,7 @@ class PageStateDetector:
                     self._last_question_number = detected_number
                     self._last_question_seen_at = now
                 elif now - self._last_title_warning_at >= 2.0:
-                    self._logger.warning(
+                    self._logger.debug(
                         "four option boxes are present but question number is unreadable"
                     )
                     self._last_title_warning_at = now

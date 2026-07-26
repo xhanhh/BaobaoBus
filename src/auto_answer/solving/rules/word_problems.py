@@ -31,21 +31,42 @@ _CAPACITY_REQUIRED = re.compile(
     rf"(?:坐|装|放|容纳)(?P<per_group>{NUMBER})"
     rf"[^,，。]*?[,，][^。]*?需要"
 )
+_CAPACITY_ITEMS_FIRST = re.compile(
+    rf"(?:有|共|一共有)(?P<total>{NUMBER})[^,，。]*?[,，]"
+    rf"每(?P<per_group>{NUMBER})[^,，。]*?装一个(?:笼子|盒子|袋子)"
+    rf"[^,，。]*?[,，][^。]*?需要"
+)
 _INITIAL_INVENTORY = re.compile(
-    rf"(?:原来有|原有|有|买来|买了)(?P<initial>{NUMBER})"
-    r"(?:个|根|块|颗|本|张|只|米)"
+    rf"(?:原来有|原有|有|买回来|买来|买了|摘了|采了|"
+    rf"(?:公交车|汽车|车)上有(?:乘客)?)(?P<initial>{NUMBER})"
+    r"(?:个|根|块|颗|本|张|只|米|人)"
 )
 _INVENTORY_ACTION = re.compile(
-    rf"(?P<verb>吃掉了?|吃了|用去了?|拿走了?|送了|放飞了?|卖了|走了|下了|"
-    rf"又买了|买来了?|增加了?|添了|上了)(?P<amount>{NUMBER})"
+    rf"(?P<verb>吃掉了?|吃了|用了|用去了?|拿走了?|送了|放飞了?|飞走了?|"
+    rf"卖了|走了|下了|下车了?|搬走了?|又买了|买来了?|又摘了?|又来了?|"
+    rf"又搬来了?|"
+    rf"增加了?|添了|上了|上车了?)(?P<amount>{NUMBER})"
     r"(?:个|根|块|颗|本|张|只|米)?"
 )
 _NEGATIVE_ACTION = re.compile(
-    rf"(?:吃掉了?|吃了|用去了?|拿走了?|送了|放飞了?|卖了|走了|下了)"
+    rf"(?:吃掉了?|吃了|用了|用去了?|拿走了?|送了|放飞了?|飞走了?|"
+    rf"卖了|走了|下了|下车了?|搬走了?)"
     rf"(?P<amount>{NUMBER})(?:个|根|块|颗|本|张|只|米)?"
 )
-_REMAINING_QUERY = re.compile(r"还剩|现在(?:还)?(?:有|剩)|目前(?:还)?(?:有|剩)")
-_POSITIVE_ACTIONS = ("又买了", "买来", "增加", "添了", "上了")
+_REMAINING_QUERY = re.compile(
+    r"还剩|现在(?:还)?(?:有|剩)|现在车上有|目前(?:还)?(?:有|剩)"
+)
+_POSITIVE_ACTIONS = (
+    "又买了",
+    "买来",
+    "又摘",
+    "又来",
+    "又搬来",
+    "增加",
+    "添了",
+    "上了",
+    "上车",
+)
 _TWO_RECIPIENT_DISTRIBUTION = re.compile(
     rf"(?:有|摘了)?(?P<total>{NUMBER})(?:个)?.*?"
     rf"分给两(?:只|个).*?(?:几|多少)种分法.*?"
@@ -61,9 +82,95 @@ _TWO_PERSON_COMBINED_TOTAL = re.compile(
     rf"(?P<direction>少|多)(?P<delta>{NUMBER})[^,，。]*[,，]"
     rf"两人一共有"
 )
+_CORRECT_REMAINING_EQUATION = re.compile(
+    rf"(?:买回来|原来有|有)(?P<initial>{NUMBER})[^,，。]*[,，]"
+    rf"[^,，。]*?(?:用(?:了|去)|吃了?|卖了?|拿走了?)(?P<used>{NUMBER})"
+    rf"[^,，。]*[,，][^。]*?还剩.*?正确的算式"
+)
+_PEOPLE_BEHIND = re.compile(
+    rf"(?P<total>{NUMBER})个[^,，。]*?(?:排队|排成一排)[^,，。]*[,，]"
+    rf"[^,，。]*?前面有(?P<front>{NUMBER})人[^,，。]*[,，]"
+    rf"[^,，。]*?后面有(?:\(\)|多少|几)"
+)
+_EAGLE_CATCHING_CHICKS = re.compile(
+    rf"(?P<total>{NUMBER})个小朋友玩老鹰捉小鸡.*?"
+    rf"捉到了(?P<caught>{NUMBER})只小鸡.*?还有(?:\(\)|多少|几)只小鸡没"
+)
+_POWER_OUTAGE_LIGHTS = re.compile(
+    r"(?:灯|电灯).*?(?:突然)?停电了.*?还有(?:\(\)|多少|几).*?灯亮着"
+)
+_EQUAL_TRANSFER = re.compile(
+    rf"(?P<first_name>[\u4e00-\u9fff]{{1,4}})(?:有|做了|画了)(?P<first>{NUMBER})"
+    rf"[^,，。]*[,，](?P<second_name>[\u4e00-\u9fff]{{1,4}})(?:有|做了|画了)"
+    rf"(?P<second>{NUMBER})[^,，。]*[,，]"
+    rf"(?P<giver>[\u4e00-\u9fff]{{1,4}})给(?P<receiver>[\u4e00-\u9fff]{{1,4}})"
+    rf"(?:\(\)|多少|几)[^,，。]*[,，].*?(?:一样多|相等)"
+)
+_REVERSE_DIFFERENCE = re.compile(
+    rf"(?P<larger>{NUMBER})比(?:\(\)|多少|几)(?P<direction>多|少)"
+    rf"(?P<delta>{NUMBER})"
+)
+_TWO_EQUAL_ADDENDS = re.compile(
+    rf"两个加数都是(?P<addend>{NUMBER})[^。]*?和是(?:\(\)|多少|几)"
+)
+_BOX_TOTAL = re.compile(
+    rf"(?:有|买了)(?P<count>{NUMBER})(?:盒|袋)[^,，。]*[,，]"
+    rf"每(?:盒|袋)(?P<per>{NUMBER})[^,，。]*[,，].*?一共(?:有|买了)"
+)
+_TWO_AND_HALF_BOXES = re.compile(
+    rf"一盒[^,，。]*?(?P<per>{NUMBER})[^,，。]*[,，]"
+    rf"两盒半[^,，。]*?一共有"
+)
+_TWO_CATEGORY_TOTAL = re.compile(
+    rf"(?:男生|男同学)(?P<first>{NUMBER})人[^,，。]*[,，]"
+    rf"(?:女生|女同学)(?P<second>{NUMBER})人"
+    rf"[^,，。]*[,，].*?一共有(?:\(\)|多少|几)人"
+)
+_OLDER_SIBLING_FUTURE_AGE = re.compile(
+    rf"(?:我|弟弟|妹妹)今年(?P<younger>{NUMBER})岁[,，]"
+    rf"(?:姐姐|哥哥)比(?:我|弟弟|妹妹)大(?P<older>{NUMBER})岁[,，]"
+    rf"(?P<years>{NUMBER})年后(?:姐姐|哥哥)(?:\(\)|多少|几)岁"
+)
+_REPEATED_SUBTRACTION_TO_ZERO = re.compile(
+    rf"从(?P<total>{NUMBER})里连续减去(?P<amount>{NUMBER})[,，]"
+    rf"减(?:\(\)|多少|几)次后结果是0"
+)
+_SAME_AMOUNT_TWO_PERIODS = re.compile(
+    rf"(?:上午|昨天)[^,，。]*?(?P<amount>{NUMBER})[^,，。]*[,，]"
+    rf"(?:下午|今天)[^,，。]*?(?:和|与)(?:上午|昨天)(?:同样多|一样多)"
+    rf"[^,，。]*[,，].*?(?:一天|两天)(?:一共)?[^。]*?(?:\(\)|多少|几)"
+)
+_RIGHT_SIDE_COUNT = re.compile(
+    rf"(?P<total>{NUMBER})个同学排队[^,，。]*[,，]"
+    rf"[^,，。]*?左边有(?P<left>{NUMBER})人[^,，。]*[,，]"
+    rf"(?:他|她)?右边有(?:\(\)|多少|几)人"
+)
 
 
 def solve_counting_choice(question: Question) -> SolveDecision | None:
+    supplies = re.search(
+        rf"有(?P<students>{NUMBER})个学生和(?P<teachers>{NUMBER})个老师"
+        rf".*?每人一瓶水[,，]准备(?P<prepared>{NUMBER})瓶水[,，]"
+        rf"(?:够分配么|够不够)",
+        question.text,
+    )
+    if supplies:
+        required = Decimal(supplies.group("students")) + Decimal(
+            supplies.group("teachers")
+        )
+        prepared = Decimal(supplies.group("prepared"))
+        expected = "正好" if prepared == required else "够" if prepared > required else "不够"
+        matches = [
+            index for index, option in enumerate(question.options) if option == expected
+        ]
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"supplies comparison: {prepared} vs {required}",
+            )
+        return None
+
     distribution = _TWO_RECIPIENT_DISTRIBUTION.search(question.text)
     if distribution:
         total = Decimal(distribution.group("total"))
@@ -87,10 +194,120 @@ def solve_counting_choice(question: Question) -> SolveDecision | None:
             suffix="人",
             reason="photographer plus photographed classmates",
         )
+
+    remaining_equation = _CORRECT_REMAINING_EQUATION.search(question.text)
+    if remaining_equation:
+        initial = Decimal(remaining_equation.group("initial"))
+        used = Decimal(remaining_equation.group("used"))
+        remaining = initial - used
+        if initial < 0 or used < 0 or remaining < 0:
+            return None
+        expected = f"{initial}-{used}={remaining}"
+        matches = [
+            index
+            for index, option in enumerate(question.options)
+            if option.replace(" ", "").strip(".。") == expected
+        ]
+        if len(matches) != 1:
+            return None
+        return SolveDecision(
+            matches[0],
+            "rule",
+            f"remaining quantity equation: {expected}",
+        )
     return None
 
 
 def solve_word_problem(text: str) -> Decimal | None:
+    repeated_subtraction = _REPEATED_SUBTRACTION_TO_ZERO.search(text)
+    if repeated_subtraction:
+        total = Decimal(repeated_subtraction.group("total"))
+        amount = Decimal(repeated_subtraction.group("amount"))
+        if total < 0 or amount <= 0:
+            return None
+        count, remainder = divmod(total, amount)
+        return count if remainder == 0 else None
+
+    same_periods = _SAME_AMOUNT_TWO_PERIODS.search(text)
+    if same_periods:
+        amount = Decimal(same_periods.group("amount"))
+        return amount * 2 if amount >= 0 else None
+
+    future_age = _OLDER_SIBLING_FUTURE_AGE.search(text)
+    if future_age:
+        younger = Decimal(future_age.group("younger"))
+        older = Decimal(future_age.group("older"))
+        years = Decimal(future_age.group("years"))
+        if younger < 0 or older < 0 or years < 0:
+            return None
+        return younger + older + years
+
+    right_side = _RIGHT_SIDE_COUNT.search(text)
+    if right_side:
+        total = Decimal(right_side.group("total"))
+        left = Decimal(right_side.group("left"))
+        right = total - left - 1
+        return right if total > 0 and left >= 0 and right >= 0 else None
+
+    equal_addends = _TWO_EQUAL_ADDENDS.search(text)
+    if equal_addends:
+        return Decimal(equal_addends.group("addend")) * 2
+
+    box_total = _BOX_TOTAL.search(text)
+    if box_total:
+        count = Decimal(box_total.group("count"))
+        per = Decimal(box_total.group("per"))
+        return count * per if count >= 0 and per >= 0 else None
+
+    half_boxes = _TWO_AND_HALF_BOXES.search(text)
+    if half_boxes:
+        per = Decimal(half_boxes.group("per"))
+        return per * Decimal("2.5") if per >= 0 else None
+
+    category_total = _TWO_CATEGORY_TOTAL.search(text)
+    if category_total:
+        first = Decimal(category_total.group("first"))
+        second = Decimal(category_total.group("second"))
+        return first + second if first >= 0 and second >= 0 else None
+
+    if _POWER_OUTAGE_LIGHTS.search(text):
+        return Decimal()
+
+    eagle_game = _EAGLE_CATCHING_CHICKS.search(text)
+    if eagle_game:
+        total = Decimal(eagle_game.group("total"))
+        caught = Decimal(eagle_game.group("caught"))
+        remaining = total - 2 - caught
+        return remaining if total >= 2 and caught >= 0 and remaining >= 0 else None
+
+    equal_transfer = _EQUAL_TRANSFER.search(text)
+    if equal_transfer:
+        first = Decimal(equal_transfer.group("first"))
+        second = Decimal(equal_transfer.group("second"))
+        first_name = equal_transfer.group("first_name")
+        second_name = equal_transfer.group("second_name")
+        giver = equal_transfer.group("giver")
+        receiver = equal_transfer.group("receiver")
+        if giver == first_name and receiver == second_name:
+            transfer = (first - second) / 2
+        elif giver == second_name and receiver == first_name:
+            transfer = (second - first) / 2
+        else:
+            return None
+        return transfer if first >= 0 and second >= 0 and transfer >= 0 else None
+
+    reverse_difference = _REVERSE_DIFFERENCE.search(text)
+    if reverse_difference:
+        larger = Decimal(reverse_difference.group("larger"))
+        delta = Decimal(reverse_difference.group("delta"))
+        if delta < 0:
+            return None
+        return (
+            larger - delta
+            if reverse_difference.group("direction") == "多"
+            else larger + delta
+        )
+
     combined_total = _TWO_PERSON_COMBINED_TOTAL.search(text)
     if combined_total:
         base = Decimal(combined_total.group("base"))
@@ -105,6 +322,13 @@ def solve_word_problem(text: str) -> Decimal | None:
         if second < 0:
             return None
         return base + second
+
+    people_behind = _PEOPLE_BEHIND.search(text)
+    if people_behind:
+        total = Decimal(people_behind.group("total"))
+        front = Decimal(people_behind.group("front"))
+        behind = total - front - 1
+        return behind if total > 0 and front >= 0 and behind >= 0 else None
 
     repeated_action = _REPEATED_ACTION.search(text)
     if repeated_action:
@@ -131,6 +355,15 @@ def solve_word_problem(text: str) -> Decimal | None:
         full_groups, remainder = divmod(total, per_group)
         return full_groups + (1 if remainder else 0)
 
+    capacity_items_first = _CAPACITY_ITEMS_FIRST.search(text)
+    if capacity_items_first:
+        total = Decimal(capacity_items_first.group("total"))
+        per_group = Decimal(capacity_items_first.group("per_group"))
+        if total < 0 or per_group <= 0:
+            return None
+        full_groups, remainder = divmod(total, per_group)
+        return full_groups + (1 if remainder else 0)
+
     maximum_groups = _MAKE_MAXIMUM_GROUPS.search(text)
     if maximum_groups:
         per_group = Decimal(maximum_groups.group("per_group"))
@@ -143,7 +376,12 @@ def solve_word_problem(text: str) -> Decimal | None:
     if inventory is not None:
         return inventory
 
-    if "短了" in text or "一共用去" in text:
+    if (
+        "短了" in text
+        or "一共用去" in text
+        or "一共吃了" in text
+        or "少了" in text
+    ):
         reductions = [
             Decimal(match.group("amount"))
             for match in _NEGATIVE_ACTION.finditer(text)
@@ -164,8 +402,8 @@ def solve_word_problem(text: str) -> Decimal | None:
         return note_count * source_value / target_value
 
     queue = re.search(
-        rf"(?:有|一共有)?({NUMBER})个.*?排队.*?"
-        rf"从左数.*?第({NUMBER})个.*?从右数.*?第(?:\(\)|多少|几)",
+        rf"(?:有|一共有)?({NUMBER})个.*?(?:排队|排成一排).*?"
+        rf"从左数.*?第({NUMBER})(?:个)?.*?从右数.*?第(?:\(\)|多少|几)",
         text,
     )
     if queue:

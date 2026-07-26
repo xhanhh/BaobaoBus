@@ -89,6 +89,11 @@ ADB 点击各阶段耗时。
 `state.overlap_ocr_with_stability = true` 会提前一个确认帧开始 OCR，并在 OCR
 结束后用新帧复核内容；如果淡入动画仍在变化，本次结果会被丢弃并按原流程重试。
 
+`state.title_min_white_ratio` 会先用题号 ROI 中的亮色像素比例判断“第 X 题”是否
+可见。淡出期间即使四个白框暂时仍在，也会跳过重量级题号 OCR；每隔
+`state.title_probe_interval_seconds` 仍会强制探测一次，避免阈值不合适时永久等待。
+默认阈值按当前录屏测得，调整题号 ROI、缩放或画质后应重新校准。
+
 `adb.persistent_shell = true` 会预先建立长期 ADB shell，避免每题点击都创建新进程。
 长连接超时或断开时，该次点击会自动改用原来的单次 ADB 命令，随后重建长连接。
 
@@ -104,7 +109,7 @@ ADB 点击各阶段耗时。
 - `vision`：截图、OCR、文本规范化和页面状态检测。
 - `device`：ADB 设备控制。
 - `solving`：Ollama 客户端与本地规则。
-- `solving/rules`：按算术、应用题、金额和数概念拆分的规则模块。
+- `solving/rules`：按算术、应用题、金额、计数和数概念拆分的规则模块。
 - `runtime`：中央调度器和失败材料记录。
 
 ## 开发检查

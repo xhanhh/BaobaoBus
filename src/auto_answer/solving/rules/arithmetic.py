@@ -16,6 +16,7 @@ from .common import (
     evaluate_expression,
     evaluate_numeric_form,
     match_unique,
+    parse_number,
 )
 
 _BLANK = r"(?:\(\)|__|□)"
@@ -39,7 +40,7 @@ _DIRECT_EXTREME_QUESTION = re.compile(
     r"|(?:最大|最小|最高|最低)(?:的)?(?:数|数字)(?:是|为|有)"
 )
 _EQUIVALENT_EXPRESSION = re.compile(
-    rf"与(?P<target>{EXPRESSION})(?:结果|得数)(?:相等|相同)"
+    rf"与(?P<target>{EXPRESSION})(?:的)?(?:结果|得数)(?:相等|相同)"
 )
 _EXPRESSION_NEAR_THRESHOLD = re.compile(
     rf"得数比?(?P<threshold>{NUMBER})(?P<direction>小一些|小一点|大一些|大一点)"
@@ -55,6 +56,28 @@ _FOUR_TERM_ARITHMETIC_SEQUENCE = re.compile(
     rf"(?P<first>{NUMBER})[、,](?P<second>{NUMBER})[、,]"
     rf"(?:{_BLANK}|口)[、,](?P<fourth>{NUMBER})"
 )
+_ADDEND_CHANGES = re.compile(
+    rf"一个加数(?P<first_direction>增加|减少)(?P<first>{NUMBER})[,，]"
+    rf"另一个加数(?P<second_direction>增加|减少)(?P<second>{NUMBER})[,，]和"
+)
+_SUBTRACTION_CHANGES = re.compile(
+    rf"被减数(?P<first_direction>增加|减少)(?P<first>{NUMBER})[,，]"
+    rf"减数(?P<second_direction>增加|减少)(?P<second>{NUMBER})[,，]差"
+)
+_SUBTRAHEND_FROM_DIFFERENCE = re.compile(
+    rf"被减数是(?P<minuend>{NUMBER})[,，]"
+    rf"差是(?P<difference>{NUMBER})[,，]"
+    rf"减数是(?:\(\)|多少|几)"
+)
+_SUBTRAHEND_FROM_REVERSED_FACTS = re.compile(
+    rf"差是(?P<difference>{NUMBER})[,，]"
+    rf"被减数是(?P<minuend>{NUMBER})[,，]"
+    rf"减数是(?:\(\)|多少|几)"
+)
+_TRAILING_ARITHMETIC_SEQUENCE = re.compile(
+    rf"(?:找规律[:：]?)?(?P<first>{NUMBER})[、,](?P<second>{NUMBER})[、,]"
+    rf"(?P<third>{NUMBER})[、,](?P<fourth>{NUMBER})[、,](?:{_BLANK}|口)"
+)
 
 
 def solve_arithmetic_sequence(
@@ -62,16 +85,83 @@ def solve_arithmetic_sequence(
     option_values: tuple[Decimal | None, ...],
 ) -> SolveDecision | None:
     match = _FOUR_TERM_ARITHMETIC_SEQUENCE.search(question.text)
-    if match is None:
+    if match is not None:
+        first = Decimal(match.group("first"))
+        second = Decimal(match.group("second"))
+        fourth = Decimal(match.group("fourth"))
+        difference = second - first
+        missing = second + difference
+        if fourth != missing + difference:
+            return None
+        return match_unique(missing, option_values, "arithmetic sequence")
+
+    trailing = _TRAILING_ARITHMETIC_SEQUENCE.search(question.text)
+    if trailing is None:
         return None
-    first = Decimal(match.group("first"))
-    second = Decimal(match.group("second"))
-    fourth = Decimal(match.group("fourth"))
-    difference = second - first
-    missing = second + difference
-    if fourth != missing + difference:
+    terms = tuple(
+        Decimal(trailing.group(name))
+        for name in ("first", "second", "third", "fourth")
+    )
+    differences = tuple(
+        right - left for left, right in zip(terms, terms[1:], strict=False)
+    )
+    if len(set(differences)) != 1:
         return None
-    return match_unique(missing, option_values, "arithmetic sequence")
+    return match_unique(
+        terms[-1] + differences[0],
+        option_values,
+        "arithmetic sequence",
+    )
+
+
+def solve_operation_change(question: Question) -> SolveDecision | None:
+    missing_subtrahend = _SUBTRAHEND_FROM_DIFFERENCE.search(question.text)
+    if missing_subtrahend is None:
+        missing_subtrahend = _SUBTRAHEND_FROM_REVERSED_FACTS.search(question.text)
+    if missing_subtrahend:
+        minuend = Decimal(missing_subtrahend.group("minuend"))
+        difference = Decimal(missing_subtrahend.group("difference"))
+        target = minuend - difference
+        values = tuple(parse_number(option) for option in question.options)
+        return match_unique(target, values, "subtrahend from difference")
+
+    match = _ADDEND_CHANGES.search(question.text)
+    if match:
+        change = _signed_change(
+            match.group("first_direction"),
+            Decimal(match.group("first")),
+        ) + _signed_change(
+            match.group("second_direction"),
+            Decimal(match.group("second")),
+        )
+    else:
+        match = _SUBTRACTION_CHANGES.search(question.text)
+        if match is None:
+            return None
+        change = _signed_change(
+            match.group("first_direction"),
+            Decimal(match.group("first")),
+        ) - _signed_change(
+            match.group("second_direction"),
+            Decimal(match.group("second")),
+        )
+
+    if change == 0:
+        expected = "不变"
+    elif change > 0:
+        expected = f"增加{change}"
+    else:
+        expected = f"减少{abs(change)}"
+    matches = [
+        index for index, option in enumerate(question.options) if option == expected
+    ]
+    if len(matches) != 1:
+        return None
+    return SolveDecision(matches[0], "rule", f"operation change: {expected}")
+
+
+def _signed_change(direction: str, value: Decimal) -> Decimal:
+    return value if direction == "增加" else -value
 
 
 def solve_comparison_symbol(question: Question) -> SolveDecision | None:
@@ -102,6 +192,21 @@ def solve_option_expression(question: Question) -> SolveDecision | None:
     if any(value is None for value in values):
         return None
     numeric_values = tuple(value for value in values if value is not None)
+
+    choose_max = "得数最大" in question.text
+    choose_min = "得数最小" in question.text
+    if choose_max != choose_min:
+        target = max(numeric_values) if choose_max else min(numeric_values)
+        matches = [
+            index for index, value in enumerate(numeric_values) if value == target
+        ]
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"option expression extreme: {target}",
+            )
+        return None
 
     equivalent = _EQUIVALENT_EXPRESSION.search(question.text)
     if equivalent:
@@ -273,10 +378,20 @@ def solve_between(
     values: tuple[Decimal | None, ...],
 ) -> SolveDecision | None:
     match = re.search(rf"比({NUMBER})大.*?比({NUMBER})小", text)
-    if not match or any(value is None for value in values):
+    if match:
+        lower = Decimal(match.group(1))
+        upper = Decimal(match.group(2))
+    else:
+        reverse = re.search(
+            rf"比({NUMBER})少(?:一些|一点).*?比({NUMBER})多(?:一些|一点)",
+            text,
+        )
+        if reverse is None:
+            return None
+        upper = Decimal(reverse.group(1))
+        lower = Decimal(reverse.group(2))
+    if any(value is None for value in values):
         return None
-    lower = Decimal(match.group(1))
-    upper = Decimal(match.group(2))
     if lower >= upper:
         return None
     matches = [

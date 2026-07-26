@@ -324,6 +324,701 @@ def test_combined_total_when_second_person_has_fewer() -> None:
     assert result.reason == "word arithmetic: 23"
 
 
+def test_multi_step_inventory_with_picking_and_eating() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小猴摘了14个桃子,吃了6个,又摘了3个,现在有()个桃子.",
+            ("17", "20", "8", "11"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "word arithmetic: 11"
+
+
+def test_remaining_story_selects_semantically_correct_equation() -> None:
+    result = RuleEngine().solve(
+        question(
+            "妈妈买回来12个鸡蛋,做饭用了4个,还剩几个?正确的算式是().",
+            ("12+4=16", "4+8=12", "12-8=4", "12-4=8"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "remaining quantity equation: 12-4=8"
+
+
+def test_people_behind_excludes_the_named_child() -> None:
+    result = RuleEngine().solve(
+        question(
+            "16个小朋友排队,小明前面有7人,小明后面有()人.",
+            ("10", "7", "8", "9"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "word arithmetic: 8"
+
+
+def test_queue_position_accepts_pai_cheng_yi_pai_wording() -> None:
+    result = RuleEngine().solve(
+        question(
+            "20个小朋友排成一排,从左数小红排第6,从右数小红排第().",
+            ("16", "14", "5", "15"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "word arithmetic: 15"
+
+
+def test_largest_digit_constructs_two_digit_number() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个两位数,十位上的数字是最大的一位数,"
+            "个位上的数字比十位上的数字少2,这个数是().",
+            ("79", "77", "99", "97"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "two-digit place value: 97"
+
+
+def test_fixed_tens_digit_and_ones_addition_construct_number() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个两位数,十位上的数字是5,"
+            "个位上的数字是十位上的数字加上3,这个数是().",
+            ("85", "35", "53", "58"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "two-digit place value: 58"
+
+
+def test_place_value_accepts_xiao_as_less_than() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个两位数,十位上的数字是6,"
+            "个位上的数字比十位上的数字小4,这个数是().",
+            ("62", "26", "46", "64"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_counts_integers_strictly_between_bounds() -> None:
+    result = RuleEngine().solve(
+        question("比8大,比11小的数有()个.", ("2", "4", "1", "3"))
+    )
+    assert result is not None
+    assert result.answer_index == 0
+    assert result.reason == "counting: 2"
+
+
+def test_counts_pages_inclusively() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小明今天从第10页读到第15页,他今天读了()页.",
+            ("7", "4", "6", "5"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "counting: 6"
+
+
+def test_queue_total_from_people_in_front_and_behind() -> None:
+    result = RuleEngine().solve(
+        question(
+            "同学们排队做操,我的前面有6人,后面有12人,这一排一共有几人?",
+            ("20", "17", "19", "18"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "counting: 19"
+
+
+def test_people_between_two_queue_positions() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小朋友排队,小明排第9,小红排第15,他们之间有()人.",
+            ("8", "7", "5", "6"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "counting: 5"
+
+
+def test_queue_total_from_positions_at_both_ends() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小朋友们排队,从前面数小亮是第10个,"
+            "从后面数他是第5个,这一队共有()人.",
+            ("16", "15", "14", "13"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "counting: 14"
+
+
+def test_equivalent_expression_accepts_optional_de() -> None:
+    result = RuleEngine().solve(
+        question(
+            "与4+2的结果相等的算式是().",
+            ("3+2", "3+3", "1+2", "2+3"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_eagle_game_excludes_eagle_and_hen() -> None:
+    result = RuleEngine().solve(
+        question(
+            "9个小朋友玩老鹰捉小鸡,已经捉到了4只小鸡,"
+            "还有()只小鸡没被捉到.",
+            ("6", "3", "4", "5"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "word arithmetic: 3"
+
+
+def test_money_change_with_yuan_and_jiao() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一本故事书的价格是5元8角,付出一张10元,应找回().",
+            ("4元8角", "5元8角", "5元2角", "4元2角"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "money change: 42角"
+
+
+def test_money_change_with_bare_yuan_options() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个书包35元,妈妈付了50元,应找回()元.",
+            ("20", "15", "25", "85"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_power_outage_means_no_lights_are_lit() -> None:
+    result = RuleEngine().solve(
+        question(
+            "教室里有20盏灯,全部亮着,突然停电了,关了9盏灯,"
+            "教室里还有()盏灯亮着.",
+            ("11", "20", "0", "9"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "word arithmetic: 0"
+
+
+def test_equal_transfer_between_two_people() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小美有8支铅笔,小刚有4支铅笔,"
+            "小美给小刚()支后,两人的铅笔就一样多.",
+            ("3", "4", "2", "1"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "word arithmetic: 2"
+
+
+def test_equal_transfer_accepts_made_items_wording() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小丽做了10朵花,小芳做了8朵花,"
+            "小丽给小芳()朵,两人的花就一样多.",
+            ("3", "4", "1", "2"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_trailing_increasing_arithmetic_sequence() -> None:
+    result = RuleEngine().solve(
+        question("找规律:2,4,6,8,().", ("10", "12", "7", "9"))
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_trailing_decreasing_arithmetic_sequence() -> None:
+    result = RuleEngine().solve(
+        question("找规律:19,17,15,13,().", ("11", "10", "12", "9"))
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_ten_tens_is_one_hundred() -> None:
+    result = RuleEngine().solve(
+        question("10个十是().", ("100", "1", "1000", "10"))
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_reverse_place_value_relation() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个数个位上是3,十位上的数比个位上的数多2,这个数是().",
+            ("23", "32", "35", "53"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_reverse_more_than_blank() -> None:
+    result = RuleEngine().solve(
+        question("10比()多4.", ("8", "7", "6", "14"))
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_yuan_to_fen_conversion() -> None:
+    result = RuleEngine().solve(
+        question("1元=()分.", ("10", "100", "60", "1000"))
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_clock_face_at_exact_hour() -> None:
+    result = RuleEngine().solve(
+        question(
+            "下面钟面上是6时的是().",
+            (
+                "时针指着12,分针指着6",
+                "时针指着6,分针指着6",
+                "时针指着12,分针指着12",
+                "时针指着6,分针指着12",
+            ),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_elapsed_whole_hours() -> None:
+    result = RuleEngine().solve(
+        question(
+            "我早上8时上学,中午12时吃饭,我上学后()小时吃饭.",
+            ("3", "6", "5", "4"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_unique_value_between_reverse_qualitative_bounds() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个数比40少一些,比30多一些,这个数可能是().",
+            ("45", "29", "35", "25"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "unique value between bounds"
+
+
+def test_mixed_note_exchange_validates_both_counts() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一张50元可以换()张20元和()张10元.",
+            (
+                "3张20元和0张10元",
+                "1张20元和5张10元",
+                "2张20元和3张10元",
+                "2张20元和1张10元",
+            ),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "mixed note exchange: 50元"
+
+
+def test_inventory_used_then_bought_does_not_skip_used_action() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小刚有12本练习本,用了5本,又买了4本,现在有()本.",
+            ("7", "13", "16", "11"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "word arithmetic: 11"
+
+
+def test_two_equal_addends() -> None:
+    result = RuleEngine().solve(
+        question("两个加数都是8,和是().", ("16", "64", "8", "0"))
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_total_consumed_over_two_days() -> None:
+    result = RuleEngine().solve(
+        question(
+            "妈妈买了20个苹果,第一天吃了6个,第二天吃了7个,"
+            "两天一共吃了()个.",
+            ("1", "12", "13", "14"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_total_that_flew_away() -> None:
+    result = RuleEngine().solve(
+        question(
+            "树上有15只鸟,先飞走了6只,又飞走了3只,树上少了()只鸟.",
+            ("12", "6", "3", "9"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_box_count_times_items_per_box() -> None:
+    result = RuleEngine().solve(
+        question(
+            "有3盒巧克力,每盒10块,一共有()块巧克力.",
+            ("10", "13", "33", "30"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_two_category_total() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一年级有男生18人,女生20人,一年级一共有()人.",
+            ("22", "38", "40", "2"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_option_expression_maximum() -> None:
+    result = RuleEngine().solve(
+        question(
+            "在12-4、11-5、14-9、13-7这些算式中,得数最大的是().",
+            ("11-5", "14-9", "13-7", "12-4"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_same_tens_and_ones_digit_with_bound() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个数,它的个位和十位上的数字相同,且比50大,这个数可能是().",
+            ("22", "55", "44", "33"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_unique_even_number_between_bounds() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个数比67大,比70小,并且是偶数,这个数是().",
+            ("67", "69", "68", "70"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_equal_transfer_accepts_equal_wording_and_money_units() -> None:
+    result = RuleEngine().solve(
+        question(
+            "哥哥有15元钱,弟弟有9元钱,"
+            "哥哥给弟弟()元后,两人的钱数就相等.",
+            ("4", "6", "5", "3"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+
+
+def test_bus_inventory_accepts_passenger_wording() -> None:
+    result = RuleEngine().solve(
+        question(
+            "公交车上有乘客25人,到站下车10人,上车8人,"
+            "现在车上有()人.",
+            ("33", "23", "27", "15"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "word arithmetic: 23"
+
+
+def test_future_age_of_older_sibling() -> None:
+    result = RuleEngine().solve(
+        question(
+            "我今年6岁,姐姐比我大4岁,5年后姐姐()岁.",
+            ("10", "15", "11", "14"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "word arithmetic: 15"
+
+
+def test_opposite_addend_changes_leave_sum_unchanged() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个加数增加5,另一个加数减少5,和().",
+            ("减少10", "不变", "增加5", "增加10"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "operation change: 不变"
+
+
+def test_minuend_up_and_subtrahend_down_increase_difference() -> None:
+    result = RuleEngine().solve(
+        question(
+            "被减数增加6,减数减少6,差().",
+            ("减少12", "增加12", "不变", "增加6"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "operation change: 增加12"
+
+
+def test_queue_total_accepts_this_row_wording() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小朋友们排队做操,从左数小刚排第5,"
+            "从右数小刚排第6,这一排一共有()人.",
+            ("10", "9", "12", "11"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+    assert result.reason == "counting: 10"
+
+
+def test_equal_transfer_when_second_person_is_giver() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小丽有7颗糖,小东有11颗糖,"
+            "小东给小丽()颗后,两人的糖就一样多.",
+            ("3", "2", "4", "1"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "word arithmetic: 2"
+
+
+def test_analog_clock_between_hours() -> None:
+    result = RuleEngine().solve(
+        question(
+            "钟面上,时针指在5和6之间,分针指着11,这时大约是().",
+            ("05:11:00", "06:05:00", "06:55:00", "05:55:00"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "clock hands: 05:55"
+
+
+def test_two_and_half_boxes() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一盒铅笔有10支,两盒半这样的铅笔一共有()支.",
+            ("25", "30", "20", "15"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_bought_bags_times_items_per_bag() -> None:
+    result = RuleEngine().solve(
+        question(
+            "妈妈买了3袋苹果,每袋6个,一共买了()个苹果.",
+            ("18", "9", "12", "15"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_right_side_count_from_total_and_left_side() -> None:
+    result = RuleEngine().solve(
+        question(
+            "13个同学排队,小华左边有4人,他右边有()人.",
+            ("9", "8", "7", "10"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_minimum_ten_yuan_notes_for_two_items() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个文具盒8元,一本笔记本3元,"
+            "买这两样东西,至少要付()张10元.",
+            ("1", "3", "4", "2"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "minimum notes required: 2"
+
+
+def test_cages_required_with_items_first_wording() -> None:
+    result = RuleEngine().solve(
+        question(
+            "有16只小鸡,每4只装一个笼子,需要()个笼子.",
+            ("5", "4", "6", "3"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_sum_of_largest_one_digit_and_smallest_two_digit() -> None:
+    result = RuleEngine().solve(
+        question(
+            "最大的一位数和最小的两位数的和是().",
+            ("19", "9", "20", "10"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_subtrahend_from_minuend_and_difference() -> None:
+    result = RuleEngine().solve(
+        question(
+            "被减数是14,差是6,减数是().",
+            ("9", "20", "8", "7"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_subtrahend_when_difference_is_stated_first() -> None:
+    result = RuleEngine().solve(
+        question(
+            "两个数的差是5,被减数是12,减数是().",
+            ("7", "6", "8", "17"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_repeated_subtraction_count_to_zero() -> None:
+    result = RuleEngine().solve(
+        question(
+            "从14里连续减去2,减()次后结果是0.",
+            ("6", "5", "7", "8"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_inventory_moved_out_then_back_in() -> None:
+    result = RuleEngine().solve(
+        question(
+            "教室里有20张桌子,搬走6张,又搬来4张,"
+            "现在有()张桌子.",
+            ("22", "14", "18", "10"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+
+
+def test_place_value_accepts_short_tens_wording() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个数,十位上是1,个位上的数字比十位上的数字多8,"
+            "这个数是().",
+            ("18", "19", "81", "9"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_same_amount_in_morning_and_afternoon() -> None:
+    result = RuleEngine().solve(
+        question(
+            "学校图书馆上午借出9本书,下午借出的和上午同样多,"
+            "图书馆一天借出()本书.",
+            ("18", "9", "27", "0"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+
+
+def test_same_pages_yesterday_and_today() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小明昨天看了6页书,今天看的页数和昨天一样多,"
+            "他两天一共看了()页.",
+            ("8", "12", "10", "6"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+
+
+def test_trip_water_supply_is_not_enough() -> None:
+    result = RuleEngine().solve(
+        question(
+            "有43个学生和3个老师去春游,每人一瓶水,"
+            "准备45瓶水,够分配么?",
+            ("无法确定", "不够", "够", "正好"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "supplies comparison: 45 vs 46"
+
+
 def test_largest_numeric_option() -> None:
     result = RuleEngine().solve(question("下面哪个数最大?", ("-1", "7", "3", "2")))
     assert result is not None

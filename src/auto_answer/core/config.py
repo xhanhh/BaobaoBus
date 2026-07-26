@@ -110,6 +110,9 @@ class StateConfig:
     min_white_ratio: float = 0.55
     max_capture_failures: int = 3
     overlap_ocr_with_stability: bool = True
+    title_white_pixel_threshold: int = 210
+    title_min_white_ratio: float = 0.02
+    title_probe_interval_seconds: float = 0.75
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,6 +191,12 @@ class AppConfig:
             raise ConfigurationError("state.white_pixel_threshold must be in [0, 255]")
         if not 0 <= self.state.min_white_ratio <= 1:
             raise ConfigurationError("state.min_white_ratio must be in [0, 1]")
+        if not 0 <= self.state.title_white_pixel_threshold <= 255:
+            raise ConfigurationError(
+                "state.title_white_pixel_threshold must be in [0, 255]"
+            )
+        if not 0 <= self.state.title_min_white_ratio <= 1:
+            raise ConfigurationError("state.title_min_white_ratio must be in [0, 1]")
         positive_timeouts = {
             "ollama.timeout_seconds": self.ollama.timeout_seconds,
             "adb.timeout_seconds": self.adb.timeout_seconds,
@@ -198,6 +207,9 @@ class AppConfig:
             "state.transition_timeout_seconds": self.state.transition_timeout_seconds,
             "state.question_number_cache_seconds": self.state.question_number_cache_seconds,
             "state.ocr_retry_interval_seconds": self.state.ocr_retry_interval_seconds,
+            "state.title_probe_interval_seconds": (
+                self.state.title_probe_interval_seconds
+            ),
         }
         for label, value in positive_timeouts.items():
             if value <= 0:
@@ -349,6 +361,15 @@ def load_config(path: str | Path) -> AppConfig:
             max_capture_failures=int(state.get("max_capture_failures", 3)),
             overlap_ocr_with_stability=bool(
                 state.get("overlap_ocr_with_stability", True)
+            ),
+            title_white_pixel_threshold=int(
+                state.get("title_white_pixel_threshold", 210)
+            ),
+            title_min_white_ratio=float(
+                state.get("title_min_white_ratio", 0.02)
+            ),
+            title_probe_interval_seconds=float(
+                state.get("title_probe_interval_seconds", 0.75)
             ),
         ),
         debug=DebugConfig(

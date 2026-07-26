@@ -12,9 +12,133 @@ _COUNTED_MONEY = re.compile(
     rf"(?P<count>{NUMBER})张(?P<amount>{NUMBER})(?P<unit>元|角)"
 )
 _MONEY_TOTAL_QUERY = re.compile(r"一共|共有|共计")
+_MONEY_CHANGE = re.compile(
+    rf"(?:价格是|一个|一件|一本|一张).*?"
+    rf"(?P<price_yuan>{NUMBER})元(?:(?P<price_jiao>{NUMBER})角)?"
+    rf"[^。]*?(?:付出|付了|给了).*?(?P<paid_yuan>{NUMBER})元"
+    rf"[^。]*?(?:应|应该)?找回"
+)
+_YUAN_TO_FEN = re.compile(rf"(?P<yuan>{NUMBER})元=(?:\(\)|多少|几)分")
+_MIXED_NOTE_EXCHANGE = re.compile(
+    rf"(?:一张|1张)?(?P<total>{NUMBER})元可以换"
+    rf"(?:\(\)|多少|几)张(?P<first>{NUMBER})元和"
+    rf"(?:\(\)|多少|几)张(?P<second>{NUMBER})元"
+)
+_MIXED_NOTE_OPTION = re.compile(
+    rf"(?P<first_count>{NUMBER})张(?P<first>{NUMBER})元和"
+    rf"(?P<second_count>{NUMBER})张(?P<second>{NUMBER})元"
+)
+_MINIMUM_NOTES_FOR_TWO_ITEMS = re.compile(
+    rf"[^,，。]*?(?P<first>{NUMBER})元[,，]"
+    rf"[^,，。]*?(?P<second>{NUMBER})元[,，]"
+    rf"买这两样东西[,，].*?至少要付(?:\(\)|多少|几)张"
+    rf"(?P<denomination>{NUMBER})元"
+)
 
 
 def solve_money(question: Question) -> SolveDecision | None:
+    minimum_notes = _MINIMUM_NOTES_FOR_TWO_ITEMS.search(question.text)
+    if minimum_notes:
+        first = Decimal(minimum_notes.group("first"))
+        second = Decimal(minimum_notes.group("second"))
+        denomination = Decimal(minimum_notes.group("denomination"))
+        if first < 0 or second < 0 or denomination <= 0:
+            return None
+        full_notes, remainder = divmod(first + second, denomination)
+        target = full_notes + (1 if remainder else 0)
+        numeric_options = tuple(
+            Decimal(option) if re.fullmatch(NUMBER, option) else None
+            for option in question.options
+        )
+        matches = [
+            index for index, value in enumerate(numeric_options) if value == target
+        ]
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"minimum notes required: {target}",
+            )
+        return None
+
+    mixed_exchange = _MIXED_NOTE_EXCHANGE.search(question.text)
+    if mixed_exchange:
+        total = Decimal(mixed_exchange.group("total"))
+        first = Decimal(mixed_exchange.group("first"))
+        second = Decimal(mixed_exchange.group("second"))
+        matches: list[int] = []
+        for index, option in enumerate(question.options):
+            candidate = _MIXED_NOTE_OPTION.fullmatch(option)
+            if candidate is None:
+                continue
+            first_count = Decimal(candidate.group("first_count"))
+            second_count = Decimal(candidate.group("second_count"))
+            if (
+                Decimal(candidate.group("first")) == first
+                and Decimal(candidate.group("second")) == second
+                and first_count >= 0
+                and second_count >= 0
+                and first_count == first_count.to_integral_value()
+                and second_count == second_count.to_integral_value()
+                and first_count * first + second_count * second == total
+            ):
+                matches.append(index)
+        if len(matches) == 1:
+            return SolveDecision(
+                matches[0],
+                "rule",
+                f"mixed note exchange: {total}元",
+            )
+        return None
+
+    change = _MONEY_CHANGE.search(question.text)
+    if change:
+        paid_jiao = Decimal(change.group("paid_yuan")) * 10
+        price_jiao = Decimal(change.group("price_yuan")) * 10 + Decimal(
+            change.group("price_jiao") or "0"
+        )
+        if price_jiao < 0 or paid_jiao < price_jiao:
+            return None
+        target_jiao = paid_jiao - price_jiao
+        decision = _match_money_option(
+            target_jiao,
+            question.options,
+            "money change",
+        )
+        if decision is not None:
+            return decision
+        if re.search(r"找回(?:\(\)|多少|几)元", question.text):
+            bare_yuan = tuple(
+                Decimal(option) * 10 if re.fullmatch(NUMBER, option) else None
+                for option in question.options
+            )
+            matches = [
+                index
+                for index, value in enumerate(bare_yuan)
+                if value == target_jiao
+            ]
+            if len(matches) == 1:
+                return SolveDecision(
+                    matches[0],
+                    "rule",
+                    f"money change: {target_jiao}角",
+                )
+        return None
+
+    yuan_to_fen = _YUAN_TO_FEN.search(question.text)
+    if yuan_to_fen:
+        target = Decimal(yuan_to_fen.group("yuan")) * 100
+        numeric_options = tuple(
+            Decimal(option) if re.fullmatch(NUMBER, option) else None
+            for option in question.options
+        )
+        matches = [
+            index for index, value in enumerate(numeric_options) if value == target
+        ]
+        if len(matches) == 1:
+            return SolveDecision(matches[0], "rule", f"yuan to fen: {target}")
+        return None
+
     counted_terms = list(_COUNTED_MONEY.finditer(question.text))
     if counted_terms and _MONEY_TOTAL_QUERY.search(question.text):
         if any(

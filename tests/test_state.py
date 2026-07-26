@@ -53,6 +53,49 @@ def test_page_observation_requires_title_and_all_four_white_boxes() -> None:
     assert not detector.observe(frame).is_question_page
 
 
+def test_title_visibility_gate_skips_ocr_during_fade() -> None:
+    frame = Image.new("RGB", (200, 200), "black")
+    option_boxes = (
+        Rect(0, 50, 50, 40),
+        Rect(50, 50, 50, 40),
+        Rect(0, 90, 50, 40),
+        Rect(50, 90, 50, 40),
+    )
+    for roi in option_boxes:
+        frame.paste("white", (roi.left, roi.top, roi.right, roi.bottom))
+    regions = RegionConfig(
+        question_number=Rect(0, 0, 100, 40),
+        question=Rect(100, 0, 100, 40),
+        options=option_boxes,
+        option_boxes=option_boxes,
+    )
+    calls = 0
+
+    def title_reader(_image: Image.Image) -> OCRResult:
+        nonlocal calls
+        calls += 1
+        return OCRResult("第3题", 0.99, False)
+
+    detector = PageStateDetector(
+        StateConfig(
+            white_pixel_threshold=210,
+            min_white_ratio=0.9,
+            title_min_white_ratio=0.02,
+            title_probe_interval_seconds=10.0,
+        ),
+        regions,
+        title_reader,
+    )
+    frame.paste("white", (10, 10, 30, 20))
+    assert detector.observe(frame).detected_question_number == 3
+    assert calls == 1
+
+    frame.paste("black", (0, 0, 100, 40))
+    faded = detector.observe(frame)
+    assert faded.detected_question_number is None
+    assert calls == 1
+
+
 def test_content_difference_uses_question_and_option_text_regions() -> None:
     regions = RegionConfig(
         question_number=Rect(0, 0, 20, 20),
@@ -168,6 +211,7 @@ def test_next_question_requires_change_repeated_new_number_and_stability() -> No
             new_question_confirm_frames=2,
             transition_timeout_seconds=0.2,
             min_white_ratio=0.9,
+            title_min_white_ratio=0.0,
         ),
         regions,
         title_reader,

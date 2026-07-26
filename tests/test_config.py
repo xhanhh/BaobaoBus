@@ -66,6 +66,9 @@ y=-1
     assert config.ocr.text_recognition_model_name == "PP-OCRv6_medium_rec"
     assert config.state.new_question_confirm_frames == 1
     assert config.state.overlap_ocr_with_stability is True
+    assert config.state.title_white_pixel_threshold == 210
+    assert config.state.title_min_white_ratio == 0.02
+    assert config.state.title_probe_interval_seconds == 0.75
     assert config.ollama.retry_numeric_as_text is True
     assert config.fallback.random_on_ocr_failure is False
     assert config.fallback.random_on_llm_failure is False

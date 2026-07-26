@@ -33,6 +33,7 @@ _NUMERIC_SYSTEM_PROMPT = (
     "你是小学数学选择题答题器。准确识别题目真正询问的量，"
     "用一个最短算式计算，再把最终数值匹配到选项。"
     "calculation必须是以最终数值结尾的短算式，例如8*4=32；"
+    "确需两步时可用逗号分隔两个完整等式，例如6+4=10,10+5=15；"
     "answer_value必须填写JSON数值32，不能填写字符串或算式；"
     "answer_index只能填写该数值对应选项前面的0、1、2、3零基序号。"
 )
@@ -72,6 +73,7 @@ _TEXT_RESPONSE_SCHEMA: dict[str, Any] = {
 }
 _NUMERIC_USER_INSTRUCTION = (
     "\n先确定题目问的是哪个量。calculation写最短算式，"
+    "最后一个等式的右侧必须是题目所问单位的最终数值，并与answer_value完全相同；"
     "answer_value写不带引号的最终数值，answer_index写它对应的选项序号。"
 )
 _TEXT_USER_INSTRUCTION = "\n只选择唯一正确选项，并返回它前面的零基序号。"
@@ -144,22 +146,33 @@ def parse_structured_numeric_answer(
         ) from exc
 
     calculation_text = calculation.strip().replace("×", "*").replace("÷", "/")
-    equation_parts = calculation_text.split("=")
-    if len(equation_parts) != 2 or not all(equation_parts):
-        raise SolverError(
-            f"Ollama calculation must be one complete equation: {calculation!r}"
-        )
-    try:
-        left_value = _evaluate_calculation_expression(equation_parts[0])
-        right_value = _evaluate_calculation_expression(equation_parts[1])
-    except (SyntaxError, ValueError, ArithmeticError, InvalidOperation) as exc:
-        raise SolverError(f"Ollama returned invalid calculation: {calculation!r}") from exc
-    if left_value != right_value:
-        raise SolverError(
-            "Ollama calculation equation is false: "
-            f"{calculation!r} ({left_value} != {right_value})"
-        )
-    if right_value != numeric_answer:
+    equations = re.split(r"\s*[,，;；]\s*", calculation_text)
+    if not equations or len(equations) > 4 or any(not equation for equation in equations):
+        raise SolverError(f"Ollama returned invalid calculation chain: {calculation!r}")
+
+    final_value: Decimal | None = None
+    for equation in equations:
+        equation_parts = equation.split("=")
+        if len(equation_parts) != 2 or not all(equation_parts):
+            raise SolverError(
+                "Ollama calculation must contain complete equations: "
+                f"{calculation!r}"
+            )
+        try:
+            left_value = _evaluate_calculation_expression(equation_parts[0])
+            right_value = _evaluate_calculation_expression(equation_parts[1])
+        except (SyntaxError, ValueError, ArithmeticError, InvalidOperation) as exc:
+            raise SolverError(
+                f"Ollama returned invalid calculation: {calculation!r}"
+            ) from exc
+        if left_value != right_value:
+            raise SolverError(
+                "Ollama calculation equation is false: "
+                f"{equation!r} ({left_value} != {right_value})"
+            )
+        final_value = right_value
+
+    if final_value != numeric_answer:
         raise SolverError(
             "Ollama calculation result does not match answer_value: "
             f"calculation={calculation!r}, value={answer_value!r}"
@@ -311,6 +324,7 @@ class OllamaClient:
         except ValueError as exc:
             raise SolverError("Ollama returned invalid JSON") from exc
 
+        self._log_response_timing(body, numeric_mode=numeric_mode)
         try:
             content = body["message"]["content"]
         except (KeyError, TypeError) as exc:
@@ -325,6 +339,34 @@ class OllamaClient:
             answer_index = parse_structured_index(content)
             reason = "structured text response"
         return SolveDecision(answer_index, "ollama", reason)
+
+    def _log_response_timing(
+        self,
+        body: object,
+        *,
+        numeric_mode: bool,
+    ) -> None:
+        if not isinstance(body, dict):
+            return
+
+        def milliseconds(key: str) -> float:
+            value = body.get(key, 0)
+            return float(value) / 1_000_000 if isinstance(value, int | float) else 0.0
+
+        total_ms = milliseconds("total_duration")
+        if total_ms <= 0:
+            return
+        self._logger.info(
+            "OLLAMA_TIMING mode=%s total_ms=%.0f load_ms=%.0f "
+            "prompt_eval_ms=%.0f eval_ms=%.0f prompt_tokens=%s eval_tokens=%s",
+            "numeric" if numeric_mode else "text",
+            total_ms,
+            milliseconds("load_duration"),
+            milliseconds("prompt_eval_duration"),
+            milliseconds("eval_duration"),
+            body.get("prompt_eval_count", "?"),
+            body.get("eval_count", "?"),
+        )
 
     def close(self) -> None:
         self._client.close()
