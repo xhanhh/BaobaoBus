@@ -120,6 +120,7 @@ class StateConfig:
     ready_min_text_color_ratio: float = 0.15
     ready_min_purple_ratio: float = 0.60
     infer_first_question_number_after_ready: bool = True
+    infer_sequential_question_number: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -418,6 +419,9 @@ def load_config(path: str | Path) -> AppConfig:
             ),
             infer_first_question_number_after_ready=bool(
                 state.get("infer_first_question_number_after_ready", True)
+            ),
+            infer_sequential_question_number=bool(
+                state.get("infer_sequential_question_number", True)
             ),
         ),
         debug=DebugConfig(

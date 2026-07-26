@@ -304,10 +304,16 @@ class AnswerScheduler:
                 else:
                     page_confirm_ms = transition_ms
                     self._logger.info(
-                        "question transition confirmed: %d -> %d in %.0fms",
+                        "question transition confirmed: %d -> %d in %.0fms "
+                        "number_source=%s",
                         old_number,
                         ready_page.question_number,
                         transition_ms,
+                        (
+                            "sequence-inferred"
+                            if ready_page.question_number_inferred
+                            else "title-ocr"
+                        ),
                     )
                 last_read = None
 

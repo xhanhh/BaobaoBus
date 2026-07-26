@@ -433,17 +433,38 @@ class PageStateDetector:
                     and stable_count >= required_stable_frames
                 )
                 if visual_ready:
-                    infer_first_number = (
+                    title_visible = (
+                        phase.title_visible
+                        if phase is not None
+                        else (
+                            white_pixel_ratio(
+                                crop_for_state(frame, self._regions.question_number),
+                                self._config.title_white_pixel_threshold,
+                            )
+                            >= self._config.title_min_white_ratio
+                        )
+                    )
+                    inferred_number: int | None = None
+                    if (
                         ready_confirmed_at is not None
-                        and phase is not None
-                        and phase.title_visible
+                        and title_visible
                         and self._config.infer_first_question_number_after_ready
                         and expected_number in (None, 1)
-                    )
-                    if infer_first_number:
+                    ):
+                        inferred_number = 1
+                    elif (
+                        baseline_frame is not None
+                        and require_fresh_number_frames
+                        and excluded_number is not None
+                        and title_visible
+                        and self._config.infer_sequential_question_number
+                    ):
+                        inferred_number = excluded_number + 1
+
+                    if inferred_number is not None:
                         observation = PageObservation(
                             detected_question_number=None,
-                            effective_question_number=1,
+                            effective_question_number=inferred_number,
                             title_text="",
                             option_boxes_present=True,
                             option_white_ratios=ratios,
@@ -463,7 +484,7 @@ class PageStateDetector:
                         number is not None
                         and (expected_number is None or number == expected_number)
                         and (
-                            infer_first_number
+                            inferred_number is not None
                             or excluded_number is None
                             or number != excluded_number
                         )
@@ -473,7 +494,7 @@ class PageStateDetector:
                             candidate_number = number
                             fresh_number_count = 0
                         if (
-                            infer_first_number
+                            inferred_number is not None
                             or observation.detected_question_number == candidate_number
                         ):
                             fresh_number_count += 1
@@ -502,7 +523,7 @@ class PageStateDetector:
                                     if answer_entering_at is not None
                                     else None
                                 ),
-                                question_number_inferred=infer_first_number,
+                                question_number_inferred=inferred_number is not None,
                             )
             else:
                 candidate_number = None

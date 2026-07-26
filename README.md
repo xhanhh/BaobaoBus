@@ -89,6 +89,10 @@ FIRST_PAGE_TIMING ready_to_answer_ms=2920 answer_layout_to_confirm_ms=398 number
 高频检测。Ready 后的首题号可以配置为推断 1，但完整 OCR 仍会再次识别并校验题号，
 校验失败时不会点击。
 
+`state.infer_sequential_question_number = true` 对后续题采用同样的安全优化：
+页面已明显变化、四个选项框完整且内容稳定后先推断题号为 `N+1`，省去一次独立题号
+OCR；紧接着的批量 OCR 仍必须识别出相同题号，否则本轮结果作废且不会点击。
+
 实时点击还会输出 `tap_ms` 和 `recognize_to_tap_ms`，用于区分页面检测、OCR、求解及
 ADB 点击各阶段耗时。
 

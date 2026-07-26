@@ -293,3 +293,57 @@ def test_next_question_requires_change_repeated_new_number_and_stability() -> No
     )
     assert result is not None
     assert result.question_number == 2
+
+
+def test_next_question_can_infer_sequence_before_batch_ocr_verifies_title() -> None:
+    option_boxes = (
+        Rect(0, 40, 50, 20),
+        Rect(50, 40, 50, 20),
+        Rect(0, 60, 50, 20),
+        Rect(50, 60, 50, 20),
+    )
+    regions = RegionConfig(
+        question_number=Rect(0, 0, 20, 20),
+        question=Rect(20, 0, 80, 20),
+        options=option_boxes,
+        option_boxes=option_boxes,
+    )
+
+    old = Image.new("RGB", (100, 100), "black")
+    for roi in option_boxes:
+        old.paste("white", (roi.left, roi.top, roi.right, roi.bottom))
+    transition = Image.new("RGB", (100, 100), "black")
+    new = old.copy()
+    new.paste("white", (0, 0, 100, 20))
+    title_calls = 0
+
+    def title_reader(_image: Image.Image) -> OCRResult:
+        nonlocal title_calls
+        title_calls += 1
+        return OCRResult("第2题", 0.99, False)
+
+    detector = PageStateDetector(
+        StateConfig(
+            stable_threshold=0.01,
+            change_threshold=0.05,
+            poll_interval_seconds=0.001,
+            required_stable_frames=2,
+            page_confirm_frames=2,
+            new_question_confirm_frames=1,
+            transition_timeout_seconds=0.2,
+            min_white_ratio=0.9,
+            overlap_ocr_with_stability=True,
+            infer_sequential_question_number=True,
+        ),
+        regions,
+        title_reader,
+    )
+    result = detector.wait_for_next_question(
+        SequenceSource([transition, new]),
+        old_question_number=1,
+        baseline_frame=old,
+    )
+    assert result is not None
+    assert result.question_number == 2
+    assert result.question_number_inferred
+    assert title_calls == 0

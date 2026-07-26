@@ -163,6 +163,8 @@ ready_min_text_color_ratio = 0.15
 ready_min_purple_ratio = 0.60
 # The normal question OCR still verifies "第1题" before any tap.
 infer_first_question_number_after_ready = true
+# Save one separate title OCR on transitions; batch OCR still verifies the title.
+infer_sequential_question_number = true
 
 [debug]
 enabled = true
