@@ -17,6 +17,7 @@ from .arithmetic import (
 from .common import match_unique, parse_number
 from .counting import solve_counting_problem
 from .curriculum import solve_curriculum_template
+from .division import solve_division
 from .geometry_measurement import solve_geometry_measurement
 from .money import solve_money
 from .multiplication import solve_multiplication_concept
@@ -26,6 +27,7 @@ from .number_concepts import (
     solve_number_pair,
     solve_place_value_number,
 )
+from .place_value_extended import solve_extended_place_value
 from .time_concepts import solve_time
 from .word_problems import solve_counting_choice, solve_word_problem
 
@@ -49,6 +51,10 @@ class RuleEngine:
             return decision
 
         decision = solve_place_value_number(question.text, option_values)
+        if decision is not None:
+            return decision
+
+        decision = solve_extended_place_value(question)
         if decision is not None:
             return decision
 
@@ -77,6 +83,10 @@ class RuleEngine:
             return decision
 
         decision = solve_multiplication_concept(question)
+        if decision is not None:
+            return decision
+
+        decision = solve_division(question)
         if decision is not None:
             return decision
 

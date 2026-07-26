@@ -58,7 +58,18 @@ _EXPRESSION_NEAR_THRESHOLD = re.compile(
     rf"得数比?(?P<threshold>{NUMBER})(?P<direction>小一些|小一点|大一些|大一点)"
 )
 _EXPRESSION_THRESHOLD = re.compile(
-    rf"得数(?P<direction>小于|大于)(?P<threshold>{NUMBER})的算式"
+    rf"(?:得数|结果)(?:比)?(?P<threshold>{NUMBER})"
+    rf"(?P<direction>小于|大于|小|大)(?:的算式|的是)"
+)
+_EXPRESSION_PREFIX_THRESHOLD = re.compile(
+    rf"(?:得数|结果)(?P<direction>小于|大于)"
+    rf"(?P<threshold>{NUMBER})(?:的算式|的是)"
+)
+_EXPRESSION_RESULT_EQUALS = re.compile(
+    rf"(?:算式中)?(?:结果|得数)等于(?P<target>{NUMBER})"
+)
+_CANNOT_REWRITE_EXPRESSION = re.compile(
+    rf"(?P<target>{EXPRESSION})[,，](?:不可以|不能)改写成算式"
 )
 _COMPARISON_BLANK = re.compile(
     rf"(?P<left>{EXPRESSION}|{NUMBER})(?:□|口|\(\)|__)"
@@ -232,7 +243,9 @@ def solve_comparison_symbol(question: Question) -> SolveDecision | None:
 
 
 def solve_option_expression(question: Question) -> SolveDecision | None:
-    values = tuple(evaluate_expression(option) for option in question.options)
+    values = tuple(
+        evaluate_expression(option.rstrip("=")) for option in question.options
+    )
     if any(value is None for value in values):
         return None
     numeric_values = tuple(value for value in values if value is not None)
@@ -280,6 +293,14 @@ def solve_option_expression(question: Question) -> SolveDecision | None:
             )
         return None
 
+    result_equals = _EXPRESSION_RESULT_EQUALS.search(question.text)
+    if result_equals:
+        return match_unique(
+            Decimal(result_equals.group("target")),
+            values,
+            "option expression exact result",
+        )
+
     equivalent = _EQUIVALENT_EXPRESSION.search(question.text)
     rewrite = _REWRITE_EXPRESSION.search(question.text)
     if equivalent or rewrite:
@@ -301,8 +322,9 @@ def solve_option_expression(question: Question) -> SolveDecision | None:
 
     not_equivalent = _NOT_EQUIVALENT_EXPRESSION.search(question.text)
     cannot_represent = _CANNOT_REPRESENT_EXPRESSION.search(question.text)
-    if not_equivalent or cannot_represent:
-        matched = not_equivalent or cannot_represent
+    cannot_rewrite = _CANNOT_REWRITE_EXPRESSION.search(question.text)
+    if not_equivalent or cannot_represent or cannot_rewrite:
+        matched = not_equivalent or cannot_represent or cannot_rewrite
         assert matched is not None
         target = evaluate_expression(matched.group("target"))
         if target is None:
@@ -344,11 +366,13 @@ def solve_option_expression(question: Question) -> SolveDecision | None:
         return None
 
     threshold_match = _EXPRESSION_THRESHOLD.search(question.text)
+    if threshold_match is None:
+        threshold_match = _EXPRESSION_PREFIX_THRESHOLD.search(question.text)
     if threshold_match:
         threshold = Decimal(threshold_match.group("threshold"))
         predicate = (
             operator.lt
-            if threshold_match.group("direction") == "小于"
+            if threshold_match.group("direction") in {"小", "小于"}
             else operator.gt
         )
         matches = [

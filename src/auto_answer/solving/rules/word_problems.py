@@ -147,8 +147,9 @@ _OLDER_SIBLING_FUTURE_AGE = re.compile(
     rf"(?P<years>{NUMBER})年后(?:姐姐|哥哥)(?:\(\)|多少|几)岁"
 )
 _REPEATED_SUBTRACTION_TO_ZERO = re.compile(
-    rf"从(?P<total>{NUMBER})里连续减去(?P<amount>{NUMBER})[,，]"
-    rf"减(?:\(\)|多少|几)次后结果是0"
+    rf"从(?P<total>{NUMBER})(?:里|中|里面)?连续减(?:去)?"
+    rf"(?P<amount>{NUMBER})[,，]?"
+    rf"减(?:\(\)|多少|几)次(?:后|才能使)?(?:结果|得数)?(?:等于|是|为)?(?:0|零)"
 )
 _SAME_AMOUNT_TWO_PERIODS = re.compile(
     rf"(?:上午|昨天)[^,，。]*?(?P<amount>{NUMBER})[^,，。]*[,，]"
