@@ -88,6 +88,7 @@ class ADBConfig:
     tap_points: tuple[Point, Point, Point, Point]
     serial: str | None = None
     timeout_seconds: float = 5.0
+    persistent_shell: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +109,7 @@ class StateConfig:
     white_pixel_threshold: int = 210
     min_white_ratio: float = 0.55
     max_capture_failures: int = 3
+    overlap_ocr_with_stability: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,6 +324,7 @@ def load_config(path: str | Path) -> AppConfig:
             tap_points=tuple(tap_points),  # type: ignore[arg-type]
             serial=configured_serial,
             timeout_seconds=float(adb.get("timeout_seconds", 5.0)),
+            persistent_shell=bool(adb.get("persistent_shell", True)),
         ),
         state=StateConfig(
             stable_threshold=float(state.get("stable_threshold", 0.010)),
@@ -344,6 +347,9 @@ def load_config(path: str | Path) -> AppConfig:
             white_pixel_threshold=int(state.get("white_pixel_threshold", 210)),
             min_white_ratio=float(state.get("min_white_ratio", 0.55)),
             max_capture_failures=int(state.get("max_capture_failures", 3)),
+            overlap_ocr_with_stability=bool(
+                state.get("overlap_ocr_with_stability", True)
+            ),
         ),
         debug=DebugConfig(
             enabled=bool(debug.get("enabled", True)),

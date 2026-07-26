@@ -65,9 +65,11 @@ y=-1
     assert config.ocr.text_detection_model_name == "PP-OCRv6_medium_det"
     assert config.ocr.text_recognition_model_name == "PP-OCRv6_medium_rec"
     assert config.state.new_question_confirm_frames == 1
+    assert config.state.overlap_ocr_with_stability is True
     assert config.ollama.retry_numeric_as_text is True
     assert config.fallback.random_on_ocr_failure is False
     assert config.fallback.random_on_llm_failure is False
+    assert config.adb.persistent_shell is True
     assert [(item.left, item.top) for item in config.regions.options] == [
         (0, 100),
         (200, 100),

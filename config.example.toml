@@ -102,6 +102,8 @@ executable = "tools/android/adb.exe"
 # Set serial when more than one device is connected. Otherwise leave it empty.
 serial = ""
 timeout_seconds = 5.0
+# Reuse one adb shell process for taps; automatically falls back if it disconnects.
+persistent_shell = true
 
 # These are PHONE NATIVE SCREEN coordinates, not screenshot/ROI coordinates.
 # All four placeholders must be replaced before live mode is allowed to start.
@@ -139,6 +141,8 @@ ocr_retry_interval_seconds = 0.10
 white_pixel_threshold = 210
 min_white_ratio = 0.55
 max_capture_failures = 3
+# Start OCR one confirmation frame early, then validate against a fresh frame.
+overlap_ocr_with_stability = true
 
 [debug]
 enabled = true

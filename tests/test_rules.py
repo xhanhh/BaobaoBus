@@ -287,6 +287,43 @@ def test_impossible_two_digit_counter_bead_count_is_not_guessed() -> None:
     ) is None
 
 
+def test_two_distinct_recipient_distribution_counts_ordered_allocations() -> None:
+    result = RuleEngine().solve(
+        question(
+            "摘了7个桃子,分给两只小猴子,有几种分法?(每只小猴子最少分1个)()",
+            ("3种", "6种", "2种", "5种"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "two distinct recipients: 6"
+
+
+def test_group_photo_count_includes_the_named_child() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小红和小组里的每一个同学都合照一次像,一共照了9次."
+            "小组里一共有多少人?",
+            ("9人", "10人", "11人", "8人"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "photographer plus photographed classmates: 10"
+
+
+def test_combined_total_when_second_person_has_fewer() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小明有15个苹果,小红的苹果比小明少7个,两人一共有()个苹果.",
+            ("8", "23", "22", "20"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "word arithmetic: 23"
+
+
 def test_largest_numeric_option() -> None:
     result = RuleEngine().solve(question("下面哪个数最大?", ("-1", "7", "3", "2")))
     assert result is not None

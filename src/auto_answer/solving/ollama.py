@@ -179,7 +179,8 @@ def parse_structured_numeric_answer(
 
 
 def _evaluate_calculation_expression(expression: str) -> Decimal:
-    if not expression.strip():
+    expression = expression.strip()
+    if not expression:
         raise ValueError("empty calculation expression")
     node = ast.parse(expression, mode="eval").body
 

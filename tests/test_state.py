@@ -89,6 +89,40 @@ class SequenceSource(FrameSource):
         return frame.copy()
 
 
+def test_overlap_starts_ocr_candidate_one_confirmation_frame_early() -> None:
+    option_boxes = (
+        Rect(0, 40, 50, 20),
+        Rect(50, 40, 50, 20),
+        Rect(0, 60, 50, 20),
+        Rect(50, 60, 50, 20),
+    )
+    regions = RegionConfig(
+        question_number=Rect(0, 0, 20, 20),
+        question=Rect(20, 0, 80, 20),
+        options=option_boxes,
+        option_boxes=option_boxes,
+    )
+    frame = Image.new("RGB", (100, 100), "black")
+    for roi in option_boxes:
+        frame.paste("white", (roi.left, roi.top, roi.right, roi.bottom))
+    source = SequenceSource([frame, frame])
+    detector = PageStateDetector(
+        StateConfig(
+            poll_interval_seconds=0.001,
+            required_stable_frames=2,
+            page_confirm_frames=2,
+            page_wait_timeout_seconds=0.1,
+            min_white_ratio=0.9,
+            overlap_ocr_with_stability=True,
+        ),
+        regions,
+        lambda _image: OCRResult("第1题", 0.99, False),
+    )
+    result = detector.wait_for_question_page(source)
+    assert result is not None
+    assert source.index == 1
+
+
 def test_next_question_requires_change_repeated_new_number_and_stability() -> None:
     option_boxes = (
         Rect(0, 40, 50, 20),

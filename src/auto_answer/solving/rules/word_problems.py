@@ -7,7 +7,8 @@ import re
 from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 
-from .common import NUMBER
+from ...core.models import Question, SolveDecision
+from .common import NUMBER, match_unique
 
 _MAKE_MAXIMUM_GROUPS = re.compile(
     rf"(?:做|制作)(?:一个|1个)?[^,，。]*?(?:要用|需要)"
@@ -45,9 +46,66 @@ _NEGATIVE_ACTION = re.compile(
 )
 _REMAINING_QUERY = re.compile(r"还剩|现在(?:还)?(?:有|剩)|目前(?:还)?(?:有|剩)")
 _POSITIVE_ACTIONS = ("又买了", "买来", "增加", "添了", "上了")
+_TWO_RECIPIENT_DISTRIBUTION = re.compile(
+    rf"(?:有|摘了)?(?P<total>{NUMBER})(?:个)?.*?"
+    rf"分给两(?:只|个).*?(?:几|多少)种分法.*?"
+    rf"每(?:只|个)[^,，。]*?最少分1个"
+)
+_GROUP_PHOTO_COUNT = re.compile(
+    rf"和小组里的每一个同学都合照一次[^,，。]*[,，]"
+    rf"一共照了(?P<count>{NUMBER})次.*?小组里一共有多少人"
+)
+_TWO_PERSON_COMBINED_TOTAL = re.compile(
+    rf"(?P<first_name>[\u4e00-\u9fff]{{1,4}})有(?P<base>{NUMBER})[^,，。]*[,，]"
+    rf"[\u4e00-\u9fff]{{1,4}}(?:的[^,，。]*)?比(?P=first_name)"
+    rf"(?P<direction>少|多)(?P<delta>{NUMBER})[^,，。]*[,，]"
+    rf"两人一共有"
+)
+
+
+def solve_counting_choice(question: Question) -> SolveDecision | None:
+    distribution = _TWO_RECIPIENT_DISTRIBUTION.search(question.text)
+    if distribution:
+        total = Decimal(distribution.group("total"))
+        if total != total.to_integral_value() or total < 2:
+            return None
+        return _match_count_option(
+            total - 1,
+            question.options,
+            suffix="种",
+            reason="two distinct recipients",
+        )
+
+    photos = _GROUP_PHOTO_COUNT.search(question.text)
+    if photos:
+        count = Decimal(photos.group("count"))
+        if count != count.to_integral_value() or count < 0:
+            return None
+        return _match_count_option(
+            count + 1,
+            question.options,
+            suffix="人",
+            reason="photographer plus photographed classmates",
+        )
+    return None
 
 
 def solve_word_problem(text: str) -> Decimal | None:
+    combined_total = _TWO_PERSON_COMBINED_TOTAL.search(text)
+    if combined_total:
+        base = Decimal(combined_total.group("base"))
+        delta = Decimal(combined_total.group("delta"))
+        if base < 0 or delta < 0:
+            return None
+        second = (
+            base - delta
+            if combined_total.group("direction") == "少"
+            else base + delta
+        )
+        if second < 0:
+            return None
+        return base + second
+
     repeated_action = _REPEATED_ACTION.search(text)
     if repeated_action:
         per_action = Decimal(repeated_action.group("per_action"))
@@ -154,3 +212,17 @@ def _inventory_total(text: str) -> Decimal | None:
         else:
             total -= amount
     return total
+
+
+def _match_count_option(
+    target: Decimal,
+    options: tuple[str, str, str, str],
+    *,
+    suffix: str,
+    reason: str,
+) -> SolveDecision | None:
+    values: list[Decimal | None] = []
+    for option in options:
+        match = re.fullmatch(rf"({NUMBER}){re.escape(suffix)}", option.strip())
+        values.append(Decimal(match.group(1)) if match else None)
+    return match_unique(target, tuple(values), reason)

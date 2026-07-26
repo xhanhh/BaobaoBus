@@ -257,6 +257,13 @@ class PageStateDetector:
         stable_count = 0
         previous_stable_frame: Image.Image | None = None
         visual_change_seen = baseline_frame is None
+        required_option_frames = self._config.page_confirm_frames
+        required_stable_frames = self._config.required_stable_frames
+        if self._config.overlap_ocr_with_stability:
+            # Begin OCR one confirmation frame early. The scheduler captures a fresh
+            # frame after OCR and rejects the result if the content did not remain stable.
+            required_option_frames = max(1, required_option_frames - 1)
+            required_stable_frames = max(1, required_stable_frames - 1)
 
         while time.monotonic() < deadline:
             frame = self.capture_with_retry(source)
@@ -288,8 +295,8 @@ class PageStateDetector:
 
                 visual_ready = (
                     visual_change_seen
-                    and option_box_count >= self._config.page_confirm_frames
-                    and stable_count >= self._config.required_stable_frames
+                    and option_box_count >= required_option_frames
+                    and stable_count >= required_stable_frames
                 )
                 if visual_ready:
                     observation = self.observe(

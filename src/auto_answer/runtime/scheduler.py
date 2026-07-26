@@ -323,6 +323,8 @@ class AnswerScheduler:
         finally:
             self._source.close()
             self._ollama.close()
+            if self._adb is not None:
+                self._adb.close()
             if self.state is not SchedulerState.ERROR:
                 self.state = SchedulerState.STOPPED
 

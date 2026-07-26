@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import itertools
+import logging
+import queue
 import re
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 from ..core.config import ADBConfig
@@ -15,6 +20,12 @@ class ADBController:
         self._config = config
         self._executable = Path(config.executable)
         self._serial: str | None = config.serial
+        self._logger = logging.getLogger(__name__)
+        self._shell_process: subprocess.Popen[str] | None = None
+        self._shell_output: queue.Queue[str | None] = queue.Queue()
+        self._shell_reader: threading.Thread | None = None
+        self._shell_lock = threading.Lock()
+        self._command_ids = itertools.count(1)
 
     def check_device(self) -> str:
         if not self._executable.is_file():
@@ -43,6 +54,8 @@ class ADBController:
         else:
             raise ADBError(f"multiple ADB devices found; configure adb.serial: {devices}")
         self._validate_tap_points_against_device()
+        if self._config.persistent_shell:
+            self._warm_persistent_shell()
         return self._serial
 
     def tap(self, answer_index: int) -> None:
@@ -55,7 +68,164 @@ class ADBController:
             )
         if self._serial is None:
             self.check_device()
-        self._run("-s", self._serial, "shell", "input", "tap", str(point.x), str(point.y))
+        if not self._config.persistent_shell:
+            self._run(
+                "-s",
+                self._serial,
+                "shell",
+                "input",
+                "tap",
+                str(point.x),
+                str(point.y),
+            )
+            return
+
+        try:
+            self._tap_persistent(point.x, point.y)
+        except ADBError as exc:
+            self._logger.warning(
+                "persistent ADB shell failed; retrying this tap with one-shot ADB: %s",
+                exc,
+            )
+            self._stop_persistent_shell()
+            self._run(
+                "-s",
+                self._serial,
+                "shell",
+                "input",
+                "tap",
+                str(point.x),
+                str(point.y),
+            )
+            self._warm_persistent_shell()
+
+    def close(self) -> None:
+        with self._shell_lock:
+            self._stop_persistent_shell()
+
+    def _tap_persistent(self, x: int, y: int) -> None:
+        self._run_persistent_command(f"input tap {x} {y}")
+
+    def _run_persistent_command(self, command: str) -> None:
+        with self._shell_lock:
+            self._ensure_persistent_shell()
+            process = self._shell_process
+            if process is None or process.stdin is None:
+                raise ADBError("persistent ADB shell has no stdin")
+
+            marker = f"__AUTO_ANSWER_DONE_{next(self._command_ids)}__"
+            try:
+                process.stdin.write(f"{command}; echo {marker}:$?\n")
+                process.stdin.flush()
+            except (BrokenPipeError, OSError) as exc:
+                raise ADBError(f"cannot write to persistent ADB shell: {exc}") from exc
+
+            deadline = time.monotonic() + self._config.timeout_seconds
+            diagnostics: list[str] = []
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ADBError(
+                        "persistent ADB tap timed out; output="
+                        f"{diagnostics[-3:]!r}"
+                    )
+                try:
+                    line = self._shell_output.get(timeout=remaining)
+                except queue.Empty as exc:
+                    raise ADBError(
+                        "persistent ADB tap timed out; output="
+                        f"{diagnostics[-3:]!r}"
+                    ) from exc
+                if line is None:
+                    raise ADBError(
+                        "persistent ADB shell exited before acknowledging tap"
+                    )
+                cleaned = line.strip()
+                if cleaned.startswith(f"{marker}:"):
+                    status = cleaned.removeprefix(f"{marker}:").strip()
+                    if status != "0":
+                        raise ADBError(
+                            f"persistent ADB tap exited with {status!r}; "
+                            f"output={diagnostics[-3:]!r}"
+                        )
+                    return
+                if cleaned:
+                    diagnostics.append(cleaned)
+
+    def _warm_persistent_shell(self) -> None:
+        try:
+            self._run_persistent_command(":")
+        except ADBError as exc:
+            self._logger.warning(
+                "could not prestart persistent ADB shell; one-shot fallback remains available: %s",
+                exc,
+            )
+
+    def _ensure_persistent_shell(self) -> None:
+        if self._shell_process is not None and self._shell_process.poll() is None:
+            return
+        self._stop_persistent_shell()
+        command = [str(self._executable), "-s", str(self._serial), "shell"]
+        creation_flags = (
+            subprocess.CREATE_NO_WINDOW
+            if hasattr(subprocess, "CREATE_NO_WINDOW")
+            else 0
+        )
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+                creationflags=creation_flags,
+            )
+        except OSError as exc:
+            raise ADBError(f"cannot start persistent ADB shell: {exc}") from exc
+        if process.stdin is None or process.stdout is None:
+            process.terminate()
+            raise ADBError("persistent ADB shell did not expose pipes")
+
+        self._shell_process = process
+        output_queue: queue.Queue[str | None] = queue.Queue()
+        self._shell_output = output_queue
+
+        def read_output() -> None:
+            assert process.stdout is not None
+            try:
+                for line in process.stdout:
+                    output_queue.put(line)
+            finally:
+                output_queue.put(None)
+
+        self._shell_reader = threading.Thread(
+            target=read_output,
+            name="adb-shell-reader",
+            daemon=True,
+        )
+        self._shell_reader.start()
+
+    def _stop_persistent_shell(self) -> None:
+        process = self._shell_process
+        self._shell_process = None
+        self._shell_reader = None
+        if process is None:
+            return
+        if process.stdin is not None:
+            try:
+                process.stdin.close()
+            except OSError:
+                pass
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=0.5)
 
     def _validate_tap_points_against_device(self) -> None:
         output = self._run("-s", self._serial, "shell", "wm", "size")

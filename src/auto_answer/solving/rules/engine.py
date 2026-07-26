@@ -19,7 +19,7 @@ from .number_concepts import (
     solve_counter_two_digit_extreme,
     solve_number_neighbor,
 )
-from .word_problems import solve_word_problem
+from .word_problems import solve_counting_choice, solve_word_problem
 
 
 class RuleEngine:
@@ -49,6 +49,10 @@ class RuleEngine:
             return decision
 
         decision = solve_option_expression(question)
+        if decision is not None:
+            return decision
+
+        decision = solve_counting_choice(question)
         if decision is not None:
             return decision
 

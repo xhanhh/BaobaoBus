@@ -71,6 +71,15 @@ def test_structured_numeric_answer_accepts_unicode_operators() -> None:
     assert calculation == "2×5+3×1=13"
 
 
+def test_structured_numeric_answer_strips_equation_side_whitespace() -> None:
+    index, calculation = parse_structured_numeric_answer(
+        '{"calculation":"15 + (15 - 7) = 23","answer_value":23,"answer_index":1}',
+        ("8", "23", "22", "20"),
+    )
+    assert index == 1
+    assert calculation == "15 + (15 - 7) = 23"
+
+
 @pytest.mark.parametrize(
     "content",
     [
