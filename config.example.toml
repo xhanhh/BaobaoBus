@@ -13,6 +13,13 @@ top = 25
 width = 180
 height = 50
 
+[regions.ready_indicator]
+# Center strip containing the colored "Ready" / "Go!" text.
+left = 560
+top = 185
+width = 380
+height = 130
+
 [regions.question]
 # ROI coordinates are relative to the captured scrcpy frame above.
 left = 43
@@ -148,6 +155,14 @@ title_white_pixel_threshold = 210
 title_min_white_ratio = 0.02
 # Periodic forced probe prevents a bad visibility threshold from blocking forever.
 title_probe_interval_seconds = 0.75
+# Poll more frequently after Ready/Go, while the first answer page fades in.
+ready_poll_interval_seconds = 0.005
+ready_fast_window_seconds = 6.0
+ready_confirm_frames = 2
+ready_min_text_color_ratio = 0.15
+ready_min_purple_ratio = 0.60
+# The normal question OCR still verifies "第1题" before any tap.
+infer_first_question_number_after_ready = true
 
 [debug]
 enabled = true

@@ -36,6 +36,21 @@ class ReadyQuestionPage:
     frame: Image.Image
     question_number: int
     observation: PageObservation
+    ready_to_answer_ms: float | None = None
+    answer_to_confirm_ms: float | None = None
+    question_number_inferred: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class PagePhaseObservation:
+    """Cheap visual signals used before heavyweight title OCR."""
+
+    ready_page_visible: bool
+    answer_page_entering: bool
+    ready_text_color_ratio: float
+    ready_purple_ratio: float
+    visible_option_boxes: int
+    title_visible: bool
 
 
 def normalized_image_difference(first: Image.Image, second: Image.Image) -> float:
@@ -70,6 +85,33 @@ def white_pixel_ratio(image: Image.Image, threshold: int) -> float:
     pixels = np.asarray(image.convert("RGB"), dtype=np.uint8)
     white = np.all(pixels >= threshold, axis=2)
     return float(np.mean(white))
+
+
+def ready_indicator_ratios(image: Image.Image) -> tuple[float, float]:
+    """Return colored READY/GO text and purple-background ratios.
+
+    Thresholds were derived from the game's Ready/Go frames and deliberately use
+    RGB comparisons so runtime detection does not need OpenCV.
+    """
+    pixels = np.asarray(image.convert("RGB"), dtype=np.int16)
+    red = pixels[:, :, 0]
+    green = pixels[:, :, 1]
+    blue = pixels[:, :, 2]
+    yellow = (
+        (red >= 190)
+        & (green >= 110)
+        & (green <= 240)
+        & (blue <= 150)
+        & (red >= green + 15)
+    )
+    pink = (
+        (red >= 175)
+        & (red >= green + 55)
+        & (blue >= 60)
+        & (blue <= 210)
+    )
+    purple = (blue >= 160) & (blue >= red + 55) & (blue >= green + 45)
+    return float(np.mean(yellow | pink)), float(np.mean(purple))
 
 
 def _content_vector(frame: Image.Image, regions: RegionConfig) -> np.ndarray:
@@ -253,6 +295,46 @@ class PageStateDetector:
             ratios,  # type: ignore[return-value]
         )
 
+    def observe_phase(
+        self,
+        frame: Image.Image,
+        *,
+        option_ratios: tuple[float, float, float, float] | None = None,
+    ) -> PagePhaseObservation:
+        """Detect Ready/Go and the first visible portion of the answer layout."""
+        if option_ratios is None:
+            _boxes_present, option_ratios = self.option_boxes_present(frame)
+        visible_option_boxes = sum(
+            ratio >= self._config.min_white_ratio for ratio in option_ratios
+        )
+        title_visible = (
+            white_pixel_ratio(
+                crop_for_state(frame, self._regions.question_number),
+                self._config.title_white_pixel_threshold,
+            )
+            >= self._config.title_min_white_ratio
+        )
+
+        text_color_ratio = 0.0
+        purple_ratio = 0.0
+        if self._regions.ready_indicator is not None:
+            text_color_ratio, purple_ratio = ready_indicator_ratios(
+                crop_for_state(frame, self._regions.ready_indicator)
+            )
+        ready_visible = (
+            visible_option_boxes == 0
+            and text_color_ratio >= self._config.ready_min_text_color_ratio
+            and purple_ratio >= self._config.ready_min_purple_ratio
+        )
+        return PagePhaseObservation(
+            ready_page_visible=ready_visible,
+            answer_page_entering=title_visible and visible_option_boxes >= 1,
+            ready_text_color_ratio=text_color_ratio,
+            ready_purple_ratio=purple_ratio,
+            visible_option_boxes=visible_option_boxes,
+            title_visible=title_visible,
+        )
+
     def _wait_for_ready_page(
         self,
         source: FrameSource,
@@ -270,6 +352,10 @@ class PageStateDetector:
         stable_count = 0
         previous_stable_frame: Image.Image | None = None
         visual_change_seen = baseline_frame is None
+        ready_candidate_count = 0
+        ready_confirmed_at: float | None = None
+        answer_entering_at: float | None = None
+        fast_poll_until = 0.0
         required_option_frames = self._config.page_confirm_frames
         required_stable_frames = self._config.required_stable_frames
         if self._config.overlap_ocr_with_stability:
@@ -288,7 +374,42 @@ class PageStateDetector:
                 )
                 visual_change_seen = difference >= self._config.change_threshold
 
-            boxes_present, _ratios = self.option_boxes_present(frame)
+            boxes_present, ratios = self.option_boxes_present(frame)
+            now = time.monotonic()
+            phase: PagePhaseObservation | None = None
+            if baseline_frame is None:
+                phase = self.observe_phase(frame, option_ratios=ratios)
+                if phase.ready_page_visible:
+                    ready_candidate_count += 1
+                elif ready_confirmed_at is None:
+                    ready_candidate_count = 0
+
+                if (
+                    ready_confirmed_at is None
+                    and ready_candidate_count >= self._config.ready_confirm_frames
+                ):
+                    ready_confirmed_at = now
+                    self._last_question_number = None
+                    self._last_question_seen_at = 0.0
+                    fast_poll_until = now + self._config.ready_fast_window_seconds
+                    self._logger.info(
+                        "Ready page detected; armed high-frequency first-question detection"
+                    )
+                elif ready_confirmed_at is not None and phase.ready_page_visible:
+                    fast_poll_until = now + self._config.ready_fast_window_seconds
+
+                if (
+                    ready_confirmed_at is not None
+                    and answer_entering_at is None
+                    and phase.answer_page_entering
+                ):
+                    answer_entering_at = now
+                    fast_poll_until = now + self._config.ready_fast_window_seconds
+                    self._logger.info(
+                        "answer page entering %.0fms after Ready",
+                        (answer_entering_at - ready_confirmed_at) * 1000,
+                    )
+
             if boxes_present:
                 option_box_count += 1
                 if previous_stable_frame is not None:
@@ -312,26 +433,49 @@ class PageStateDetector:
                     and stable_count >= required_stable_frames
                 )
                 if visual_ready:
-                    observation = self.observe(
-                        frame,
-                        force_title_ocr=(
-                            require_fresh_number_frames
-                            or candidate_number is None
-                            or expected_number is not None
-                            or excluded_number is not None
-                        ),
+                    infer_first_number = (
+                        ready_confirmed_at is not None
+                        and phase is not None
+                        and phase.title_visible
+                        and self._config.infer_first_question_number_after_ready
+                        and expected_number in (None, 1)
                     )
+                    if infer_first_number:
+                        observation = PageObservation(
+                            detected_question_number=None,
+                            effective_question_number=1,
+                            title_text="",
+                            option_boxes_present=True,
+                            option_white_ratios=ratios,
+                        )
+                    else:
+                        observation = self.observe(
+                            frame,
+                            force_title_ocr=(
+                                require_fresh_number_frames
+                                or candidate_number is None
+                                or expected_number is not None
+                                or excluded_number is not None
+                            ),
+                        )
                     number = observation.effective_question_number
                     valid_number = (
                         number is not None
                         and (expected_number is None or number == expected_number)
-                        and (excluded_number is None or number != excluded_number)
+                        and (
+                            infer_first_number
+                            or excluded_number is None
+                            or number != excluded_number
+                        )
                     )
                     if valid_number:
                         if number != candidate_number:
                             candidate_number = number
                             fresh_number_count = 0
-                        if observation.detected_question_number == candidate_number:
+                        if (
+                            infer_first_number
+                            or observation.detected_question_number == candidate_number
+                        ):
                             fresh_number_count += 1
                         elif require_fresh_number_frames:
                             fresh_number_count = 0
@@ -343,7 +487,23 @@ class PageStateDetector:
                         )
                         if fresh_number_count >= required_number_frames:
                             assert candidate_number is not None
-                            return ReadyQuestionPage(frame, candidate_number, observation)
+                            return ReadyQuestionPage(
+                                frame,
+                                candidate_number,
+                                observation,
+                                ready_to_answer_ms=(
+                                    (answer_entering_at - ready_confirmed_at) * 1000
+                                    if ready_confirmed_at is not None
+                                    and answer_entering_at is not None
+                                    else None
+                                ),
+                                answer_to_confirm_ms=(
+                                    (time.monotonic() - answer_entering_at) * 1000
+                                    if answer_entering_at is not None
+                                    else None
+                                ),
+                                question_number_inferred=infer_first_number,
+                            )
             else:
                 candidate_number = None
                 option_box_count = 0
@@ -351,7 +511,12 @@ class PageStateDetector:
                 stable_count = 0
                 previous_stable_frame = None
 
-            time.sleep(self._config.poll_interval_seconds)
+            poll_interval = (
+                self._config.ready_poll_interval_seconds
+                if time.monotonic() < fast_poll_until
+                else self._config.poll_interval_seconds
+            )
+            time.sleep(poll_interval)
         return None
 
     def capture_with_retry(self, source: FrameSource) -> Image.Image:

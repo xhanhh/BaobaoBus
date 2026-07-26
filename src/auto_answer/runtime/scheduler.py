@@ -119,6 +119,18 @@ class AnswerScheduler:
                         ready_page.question_number,
                         page_confirm_ms,
                     )
+                    if ready_page.ready_to_answer_ms is not None:
+                        self._logger.info(
+                            "FIRST_PAGE_TIMING ready_to_answer_ms=%.0f "
+                            "answer_layout_to_confirm_ms=%.0f number_source=%s",
+                            ready_page.ready_to_answer_ms,
+                            ready_page.answer_to_confirm_ms or 0.0,
+                            (
+                                "ready-inferred"
+                                if ready_page.question_number_inferred
+                                else "title-ocr"
+                            ),
+                        )
 
                 if (
                     blocked_after_tap is not None

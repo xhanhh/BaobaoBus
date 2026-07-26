@@ -75,6 +75,20 @@ Ollama 默认在程序启动时后台预热，不阻塞题目页检测。每道�
 TIMING question=1 page_confirm_ms=431 ocr_ms=1755 solve_ms=0 recognize_to_decision_ms=1756
 ```
 
+首题还会输出：
+
+```text
+FIRST_PAGE_TIMING ready_to_answer_ms=2920 answer_layout_to_confirm_ms=398 number_source=ready-inferred
+```
+
+`page_confirm_ms` 包含匹配、VS、Ready/Go 和题目淡入动画，不能单独用来判断检测延迟。
+`ready_to_answer_ms` 是 Ready 到答题页开始淡入的游戏动画耗时；
+`answer_layout_to_confirm_ms` 才是答题布局首次可见到程序确认的耗时。程序在
+`regions.ready_indicator` 检测到 Ready/Go 后，会在
+`state.ready_fast_window_seconds` 内改用 `state.ready_poll_interval_seconds`
+高频检测。Ready 后的首题号可以配置为推断 1，但完整 OCR 仍会再次识别并校验题号，
+校验失败时不会点击。
+
 实时点击还会输出 `tap_ms` 和 `recognize_to_tap_ms`，用于区分页面检测、OCR、求解及
 ADB 点击各阶段耗时。
 

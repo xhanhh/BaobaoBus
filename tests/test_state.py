@@ -8,6 +8,7 @@ from auto_answer.vision.state import (
     extract_question_number,
     normalized_content_difference,
     normalized_image_difference,
+    ready_indicator_ratios,
 )
 
 
@@ -89,11 +90,80 @@ def test_title_visibility_gate_skips_ocr_during_fade() -> None:
     frame.paste("white", (10, 10, 30, 20))
     assert detector.observe(frame).detected_question_number == 3
     assert calls == 1
-
     frame.paste("black", (0, 0, 100, 40))
     faded = detector.observe(frame)
     assert faded.detected_question_number is None
     assert calls == 1
+
+
+def test_ready_indicator_uses_colored_text_on_purple_background() -> None:
+    ready = Image.new("RGB", (100, 50), (100, 80, 240))
+    ready.paste((240, 180, 50), (20, 10, 80, 30))
+    text_ratio, purple_ratio = ready_indicator_ratios(ready)
+    assert text_ratio >= 0.15
+    assert purple_ratio >= 0.60
+
+    versus = Image.new("RGB", (100, 50), (220, 80, 40))
+    versus.paste((240, 180, 50), (20, 10, 80, 30))
+    _text_ratio, purple_ratio = ready_indicator_ratios(versus)
+    assert purple_ratio < 0.60
+
+
+def test_ready_page_arms_first_question_without_separate_title_ocr() -> None:
+    option_boxes = (
+        Rect(0, 40, 50, 20),
+        Rect(50, 40, 50, 20),
+        Rect(0, 60, 50, 20),
+        Rect(50, 60, 50, 20),
+    )
+    regions = RegionConfig(
+        question_number=Rect(0, 0, 20, 20),
+        question=Rect(20, 0, 80, 20),
+        options=option_boxes,
+        option_boxes=option_boxes,
+        ready_indicator=Rect(20, 20, 60, 20),
+    )
+    ready = Image.new("RGB", (100, 100), (100, 80, 240))
+    ready.paste((240, 180, 50), (30, 22, 70, 30))
+    entering = Image.new("RGB", (100, 100), "black")
+    entering.paste("white", (0, 0, 20, 20))
+    entering.paste("white", (0, 40, 50, 60))
+    answer = entering.copy()
+    for roi in option_boxes:
+        answer.paste("white", (roi.left, roi.top, roi.right, roi.bottom))
+    title_calls = 0
+
+    def title_reader(_image: Image.Image) -> OCRResult:
+        nonlocal title_calls
+        title_calls += 1
+        return OCRResult("第1题", 0.99, False)
+
+    detector = PageStateDetector(
+        StateConfig(
+            poll_interval_seconds=0.001,
+            ready_poll_interval_seconds=0.001,
+            ready_fast_window_seconds=1.0,
+            ready_confirm_frames=2,
+            ready_min_text_color_ratio=0.15,
+            ready_min_purple_ratio=0.60,
+            required_stable_frames=2,
+            page_confirm_frames=2,
+            page_wait_timeout_seconds=0.2,
+            min_white_ratio=0.9,
+            overlap_ocr_with_stability=True,
+        ),
+        regions,
+        title_reader,
+    )
+    result = detector.wait_for_question_page(
+        SequenceSource([ready, ready, entering, answer])
+    )
+    assert result is not None
+    assert result.question_number == 1
+    assert result.question_number_inferred
+    assert result.ready_to_answer_ms is not None
+    assert result.answer_to_confirm_ms is not None
+    assert title_calls == 0
 
 
 def test_content_difference_uses_question_and_option_text_regions() -> None:

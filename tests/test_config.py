@@ -69,6 +69,10 @@ y=-1
     assert config.state.title_white_pixel_threshold == 210
     assert config.state.title_min_white_ratio == 0.02
     assert config.state.title_probe_interval_seconds == 0.75
+    assert config.state.ready_poll_interval_seconds == 0.005
+    assert config.state.ready_fast_window_seconds == 6.0
+    assert config.state.infer_first_question_number_after_ready is True
+    assert config.regions.ready_indicator is None
     assert config.ollama.retry_numeric_as_text is True
     assert config.fallback.random_on_ocr_failure is False
     assert config.fallback.random_on_llm_failure is False

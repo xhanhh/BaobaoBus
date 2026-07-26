@@ -53,6 +53,7 @@ class RegionConfig:
     question: Rect
     options: tuple[Rect, Rect, Rect, Rect]
     option_boxes: tuple[Rect, Rect, Rect, Rect]
+    ready_indicator: Rect | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +114,12 @@ class StateConfig:
     title_white_pixel_threshold: int = 210
     title_min_white_ratio: float = 0.02
     title_probe_interval_seconds: float = 0.75
+    ready_poll_interval_seconds: float = 0.005
+    ready_fast_window_seconds: float = 6.0
+    ready_confirm_frames: int = 2
+    ready_min_text_color_ratio: float = 0.15
+    ready_min_purple_ratio: float = 0.60
+    infer_first_question_number_after_ready: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,15 +149,23 @@ class AppConfig:
 
     def validate(self, *, require_live_coordinates: bool = True) -> None:
         frame = self.capture.screen_rect
-        for label, roi in (
+        region_entries = [
             ("regions.question_number", self.regions.question_number),
             ("regions.question", self.regions.question),
-            *((f"regions.options[{i}]", rect) for i, rect in enumerate(self.regions.options)),
+            *(
+                (f"regions.options[{i}]", rect)
+                for i, rect in enumerate(self.regions.options)
+            ),
             *(
                 (f"regions.option_boxes[{i}]", rect)
                 for i, rect in enumerate(self.regions.option_boxes)
             ),
-        ):
+        ]
+        if self.regions.ready_indicator is not None:
+            region_entries.append(
+                ("regions.ready_indicator", self.regions.ready_indicator)
+            )
+        for label, roi in region_entries:
             if roi.right > frame.width or roi.bottom > frame.height:
                 raise ConfigurationError(
                     f"{label}={roi} exceeds captured frame size {frame.width}x{frame.height}"
@@ -197,6 +212,14 @@ class AppConfig:
             )
         if not 0 <= self.state.title_min_white_ratio <= 1:
             raise ConfigurationError("state.title_min_white_ratio must be in [0, 1]")
+        if self.state.ready_confirm_frames < 1:
+            raise ConfigurationError("state.ready_confirm_frames must be at least 1")
+        if not 0 <= self.state.ready_min_text_color_ratio <= 1:
+            raise ConfigurationError(
+                "state.ready_min_text_color_ratio must be in [0, 1]"
+            )
+        if not 0 <= self.state.ready_min_purple_ratio <= 1:
+            raise ConfigurationError("state.ready_min_purple_ratio must be in [0, 1]")
         positive_timeouts = {
             "ollama.timeout_seconds": self.ollama.timeout_seconds,
             "adb.timeout_seconds": self.adb.timeout_seconds,
@@ -210,6 +233,10 @@ class AppConfig:
             "state.title_probe_interval_seconds": (
                 self.state.title_probe_interval_seconds
             ),
+            "state.ready_poll_interval_seconds": (
+                self.state.ready_poll_interval_seconds
+            ),
+            "state.ready_fast_window_seconds": self.state.ready_fast_window_seconds,
         }
         for label, value in positive_timeouts.items():
             if value <= 0:
@@ -299,6 +326,11 @@ def load_config(path: str | Path) -> AppConfig:
             question=_rect(regions.get("question", {}), "regions.question"),
             options=_ordered_options(option_rects),
             option_boxes=_ordered_options(option_box_rects),
+            ready_indicator=(
+                _rect(regions["ready_indicator"], "regions.ready_indicator")
+                if "ready_indicator" in regions
+                else None
+            ),
         ),
         ocr=OCRConfig(
             language=str(ocr.get("language", "ch")),
@@ -370,6 +402,22 @@ def load_config(path: str | Path) -> AppConfig:
             ),
             title_probe_interval_seconds=float(
                 state.get("title_probe_interval_seconds", 0.75)
+            ),
+            ready_poll_interval_seconds=float(
+                state.get("ready_poll_interval_seconds", 0.005)
+            ),
+            ready_fast_window_seconds=float(
+                state.get("ready_fast_window_seconds", 6.0)
+            ),
+            ready_confirm_frames=int(state.get("ready_confirm_frames", 2)),
+            ready_min_text_color_ratio=float(
+                state.get("ready_min_text_color_ratio", 0.15)
+            ),
+            ready_min_purple_ratio=float(
+                state.get("ready_min_purple_ratio", 0.60)
+            ),
+            infer_first_question_number_after_ready=bool(
+                state.get("infer_first_question_number_after_ready", True)
             ),
         ),
         debug=DebugConfig(
