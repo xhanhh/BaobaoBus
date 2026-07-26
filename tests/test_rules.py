@@ -1,5 +1,5 @@
-from auto_answer.models import OCRBundle, OCRResult, Question
-from auto_answer.rules import RuleEngine
+from auto_answer.core.models import OCRBundle, OCRResult, Question
+from auto_answer.solving.rules import RuleEngine
 
 
 def question(text: str, options: tuple[str, str, str, str]) -> Question:
@@ -156,6 +156,27 @@ def test_square_blank_comparison_expression() -> None:
     assert result.reason == "comparison expression: 6>5"
 
 
+def test_four_term_arithmetic_sequence_with_middle_blank() -> None:
+    result = RuleEngine().solve(
+        question(
+            "照规律写数201、302、()、504,括号里的数是()",
+            ("404", "304", "405", "403"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "arithmetic sequence: 403"
+
+
+def test_unverified_sequence_returns_none() -> None:
+    assert RuleEngine().solve(
+        question(
+            "照规律写数201、302、()、505,括号里的数是()",
+            ("404", "304", "405", "403"),
+        )
+    ) is None
+
+
 def test_queue_position_from_right() -> None:
     result = RuleEngine().solve(
         question(
@@ -195,6 +216,75 @@ def test_money_sum_with_units() -> None:
     )
     assert result is not None
     assert result.answer_index == 1
+
+
+def test_counted_money_sum_with_composite_unit_option() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小明有2张5角,3张1角,他共有()钱.",
+            ("2元3角", "1元3角", "1元", "5元"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "counted money sum: 13角"
+
+
+def test_counted_money_does_not_fall_back_to_face_value_sum() -> None:
+    assert RuleEngine().solve(
+        question(
+            "小明有2张5角,3张1角,一共有()钱.",
+            ("6角", "1元", "2元", "5元"),
+        )
+    ) is None
+
+
+def test_number_between_neighbors() -> None:
+    result = RuleEngine().solve(
+        question("我的邻居是8和6,我是().", ("4", "9", "5", "7"))
+    )
+    assert result is not None
+    assert result.answer_index == 3
+    assert result.reason == "number between neighbors: 7"
+
+
+def test_nonconsecutive_neighbors_are_not_guessed() -> None:
+    assert RuleEngine().solve(
+        question("我的邻居是8和4,我是().", ("4", "9", "6", "7"))
+    ) is None
+
+
+def test_largest_two_digit_number_on_counter() -> None:
+    result = RuleEngine().solve(
+        question(
+            "在计数器上,用5颗珠子可以表示的最大两位数是().",
+            ("32", "41", "50", "23"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 2
+    assert result.reason == "counter 最大 two-digit number: 50"
+
+
+def test_smallest_two_digit_number_on_counter() -> None:
+    result = RuleEngine().solve(
+        question(
+            "在计数器上,用5颗珠子可以表示的最小两位数是().",
+            ("50", "14", "23", "41"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "counter 最小 two-digit number: 14"
+
+
+def test_impossible_two_digit_counter_bead_count_is_not_guessed() -> None:
+    assert RuleEngine().solve(
+        question(
+            "在计数器上,用19颗珠子可以表示的最大两位数是().",
+            ("99", "98", "90", "89"),
+        )
+    ) is None
 
 
 def test_largest_numeric_option() -> None:

@@ -2,8 +2,8 @@
 
 程序从 Windows 桌面上的 scrcpy 视频区域抓取同一帧，批量识别题干与四个选项，
 优先用保守规则求解，无法确定时请求本地 Ollama，最后才通过 ADB 点击。
-空 OCR、低置信度、非法答案或页面变化都会阻止点击；暂时性识别失败会自动重试，
-持续失败才保存一次调试资料并回到题目页等待，不会终止主循环。
+空 OCR、低置信度、非法答案或页面变化默认都会阻止点击；暂时性识别失败会自动重试，
+持续失败会保存调试资料并等待人工处理，不会终止主循环。
 
 ## 配置
 
@@ -78,10 +78,28 @@ TIMING question=1 page_confirm_ms=431 ocr_ms=1755 solve_ms=0 recognize_to_decisi
 实时点击还会输出 `tap_ms` 和 `recognize_to_tap_ms`，用于区分页面检测、OCR、求解及
 ADB 点击各阶段耗时。
 
+纯数字选项首先使用带算式和值校验的结构化响应。如果响应为空、超时、格式错误或
+算式与答案矛盾，`ollama.retry_numeric_as_text = true` 会让程序再请求一次仅返回
+选项序号的文本模式；第二次仍失败才进入最终失败处理。
+
+`fallback.random_on_ocr_failure` 和 `fallback.random_on_llm_failure` 默认均为
+`false`，此时程序不会点击当前题，等待用户人工处理并进入下一题。将对应选项设为
+`true` 会在重新确认题目页稳定后随机点击 `0～3`，这种模式明确可能答错。
+
 ## 失败资料与日志
 
 默认日志写入 `artifacts/auto-answer.log`。失败目录包含可获得的完整帧、题干和四个
-选项 ROI、`ocr.json`、统一题目文本以及 `error.txt`。程序不会在不确定时随机点击。
+选项 ROI、`ocr.json`、统一题目文本以及 `error.txt`。只有显式开启相应的
+`fallback.random_on_*` 配置时，程序才会在最终失败后随机点击。
+
+## 代码结构
+
+- `core`：配置、领域模型和异常。
+- `vision`：截图、OCR、文本规范化和页面状态检测。
+- `device`：ADB 设备控制。
+- `solving`：Ollama 客户端与本地规则。
+- `solving/rules`：按算术、应用题、金额和数概念拆分的规则模块。
+- `runtime`：中央调度器和失败材料记录。
 
 ## 开发检查
 

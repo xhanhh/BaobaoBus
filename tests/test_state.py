@@ -1,9 +1,9 @@
 from PIL import Image
 
-from auto_answer.capture import FrameSource
-from auto_answer.config import RegionConfig, StateConfig
-from auto_answer.models import OCRResult, Rect
-from auto_answer.state import (
+from auto_answer.core.config import RegionConfig, StateConfig
+from auto_answer.core.models import OCRResult, Rect
+from auto_answer.vision.capture import FrameSource
+from auto_answer.vision.state import (
     PageStateDetector,
     extract_question_number,
     normalized_content_difference,

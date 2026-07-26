@@ -1,7 +1,7 @@
 from PIL import Image
 
-from auto_answer.capture import crop_regions
-from auto_answer.models import Rect
+from auto_answer.core.models import Rect
+from auto_answer.vision.capture import crop_regions
 
 
 def test_all_regions_are_cropped_from_same_frame() -> None:

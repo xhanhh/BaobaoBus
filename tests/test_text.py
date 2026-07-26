@@ -1,8 +1,8 @@
 import pytest
 
-from auto_answer.errors import UnsafeOCRResult
-from auto_answer.models import OCRBundle, OCRResult
-from auto_answer.text import assemble_question, normalize_question_text, normalize_text
+from auto_answer.core.errors import UnsafeOCRResult
+from auto_answer.core.models import OCRBundle, OCRResult
+from auto_answer.vision.text import assemble_question, normalize_question_text, normalize_text
 
 
 def result(text: str, confidence: float = 0.99) -> OCRResult:
@@ -23,6 +23,11 @@ def test_ambiguous_ten_is_only_repaired_in_expression_context() -> None:
 def test_ambiguous_one_is_repaired_as_minus_only_in_comparison_context() -> None:
     assert normalize_question_text("13一7□5,比较大小") == "13-7□5,比较大小"
     assert normalize_question_text("一共有7个") == "一共有7个"
+
+
+def test_misread_left_parenthesis_is_repaired_only_for_blank_prompt() -> None:
+    assert normalize_question_text("括号里的数是1)") == "括号里的数是()"
+    assert normalize_question_text("这个数是1)") == "这个数是1)"
 
 
 def test_expression_context_also_repairs_options() -> None:

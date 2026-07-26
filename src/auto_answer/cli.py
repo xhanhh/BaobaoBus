@@ -7,16 +7,16 @@ import logging
 import sys
 from pathlib import Path
 
-from .adb import ADBController
-from .capture import ImageFrameSource, WindowsScreenFrameSource
-from .config import AppConfig, load_config
-from .debug import DebugRecorder
-from .errors import AutoAnswerError, ConfigurationError
-from .ocr import PaddleOCRReader
-from .ollama import OllamaClient
-from .rules import RuleEngine
-from .scheduler import AnswerScheduler
-from .state import PageStateDetector
+from .core.config import AppConfig, load_config
+from .core.errors import AutoAnswerError, ConfigurationError
+from .device.adb import ADBController
+from .runtime.debug import DebugRecorder
+from .runtime.scheduler import AnswerScheduler
+from .solving.ollama import OllamaClient
+from .solving.rules import RuleEngine
+from .vision.capture import ImageFrameSource, WindowsScreenFrameSource
+from .vision.ocr import PaddleOCRReader
+from .vision.state import PageStateDetector
 
 
 def _arguments() -> argparse.Namespace:
@@ -61,6 +61,15 @@ def main() -> int:
         config = load_config(args.config)
         config.validate(require_live_coordinates=not args.dry_run and not args.check_config)
         _configure_logging(config)
+        if (
+            config.fallback.random_on_ocr_failure
+            or config.fallback.random_on_llm_failure
+        ):
+            logging.getLogger(__name__).warning(
+                "UNSAFE random fallback enabled: ocr_failure=%s llm_failure=%s",
+                config.fallback.random_on_ocr_failure,
+                config.fallback.random_on_llm_failure,
+            )
         if args.check_config:
             logging.getLogger(__name__).info("configuration is valid: %s", args.config.resolve())
             return 0

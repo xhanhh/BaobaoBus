@@ -1,8 +1,8 @@
 import pytest
 from PIL import Image, ImageDraw
 
-from auto_answer.config import OCRConfig
-from auto_answer.ocr import PaddleOCRReader
+from auto_answer.core.config import OCRConfig
+from auto_answer.vision.ocr import PaddleOCRReader
 
 
 def reader() -> PaddleOCRReader:

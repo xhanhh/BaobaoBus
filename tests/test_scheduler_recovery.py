@@ -3,13 +3,13 @@ from types import SimpleNamespace
 
 from PIL import Image
 
-from auto_answer.capture import FrameSource
-from auto_answer.config import DebugConfig, RegionConfig
-from auto_answer.debug import DebugRecorder
-from auto_answer.models import OCRBundle, OCRResult, Rect
-from auto_answer.rules import RuleEngine
-from auto_answer.scheduler import AnswerScheduler
-from auto_answer.state import PageObservation, ReadyQuestionPage
+from auto_answer.core.config import DebugConfig, RegionConfig
+from auto_answer.core.models import OCRBundle, OCRResult, Rect
+from auto_answer.runtime.debug import DebugRecorder
+from auto_answer.runtime.scheduler import AnswerScheduler
+from auto_answer.solving.rules import RuleEngine
+from auto_answer.vision.capture import FrameSource
+from auto_answer.vision.state import PageObservation, ReadyQuestionPage
 
 
 class StaticSource(FrameSource):
@@ -63,6 +63,60 @@ class FakeOllama:
         return None
 
 
+class AlwaysInvalidOCR:
+    def recognize_with_title(
+        self,
+        _crops: object,
+        _title: object,
+    ) -> tuple[OCRBundle, OCRResult]:
+        empty = OCRResult("", 0.0, True)
+        return (
+            OCRBundle(empty, (empty, empty, empty, empty)),
+            OCRResult("第1题", 0.99, False),
+        )
+
+
+class FailingOllama(FakeOllama):
+    def solve(self, _question: object) -> object:
+        from auto_answer.core.errors import SolverError
+
+        raise SolverError("both model attempts failed")
+
+
+class NoRules:
+    def solve(self, _question: object) -> None:
+        return None
+
+
+class FixedRandom:
+    def randrange(self, stop: int) -> int:
+        assert stop == 4
+        return 2
+
+
+def scheduler_config(
+    regions: RegionConfig,
+    *,
+    random_on_ocr_failure: bool = False,
+    random_on_llm_failure: bool = False,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        regions=regions,
+        state=SimpleNamespace(
+            ocr_retry_attempts=1,
+            ocr_retry_interval_seconds=0.0,
+            stable_timeout_seconds=1.0,
+            page_wait_timeout_seconds=1.0,
+            transition_timeout_seconds=1.0,
+        ),
+        debug=SimpleNamespace(save_each_question=False),
+        fallback=SimpleNamespace(
+            random_on_ocr_failure=random_on_ocr_failure,
+            random_on_llm_failure=random_on_llm_failure,
+        ),
+    )
+
+
 def test_transient_incomplete_ocr_is_retried_without_stopping(
     tmp_path: Path,
     caplog: object,
@@ -95,6 +149,10 @@ def test_transient_incomplete_ocr_is_retried_without_stopping(
             transition_timeout_seconds=1.0,
         ),
         debug=SimpleNamespace(save_each_question=False),
+        fallback=SimpleNamespace(
+            random_on_ocr_failure=False,
+            random_on_llm_failure=False,
+        ),
     )
     ocr = RetryOCR()
     scheduler = AnswerScheduler(
@@ -113,3 +171,75 @@ def test_transient_incomplete_ocr_is_retried_without_stopping(
     assert decision.answer_index == 1
     assert ocr.calls == 2
     assert "recognize_to_decision_ms=" in caplog.text  # type: ignore[attr-defined]
+
+
+def test_ocr_random_fallback_requires_explicit_configuration(tmp_path: Path) -> None:
+    frame = Image.new("RGB", (100, 100), "white")
+    option_rois = (
+        Rect(0, 40, 50, 20),
+        Rect(50, 40, 50, 20),
+        Rect(0, 60, 50, 20),
+        Rect(50, 60, 50, 20),
+    )
+    regions = RegionConfig(
+        question_number=Rect(0, 0, 50, 20),
+        question=Rect(0, 20, 100, 20),
+        options=option_rois,
+        option_boxes=option_rois,
+    )
+    page = ReadyQuestionPage(
+        frame,
+        1,
+        PageObservation(1, 1, "第1题", True, (1.0, 1.0, 1.0, 1.0)),
+    )
+    scheduler = AnswerScheduler(
+        config=scheduler_config(regions, random_on_ocr_failure=True),
+        source=StaticSource(frame),
+        ocr=AlwaysInvalidOCR(),
+        rules=RuleEngine(),
+        ollama=FakeOllama(),
+        state_detector=FakeDetector(page),
+        recorder=DebugRecorder(DebugConfig(enabled=False, output_dir=tmp_path)),
+        adb=None,
+        random_source=FixedRandom(),  # type: ignore[arg-type]
+    )
+    decision = scheduler.run(dry_run=True)
+    assert decision is not None
+    assert decision.answer_index == 2
+    assert decision.source == "random-fallback"
+
+
+def test_llm_random_fallback_requires_explicit_configuration(tmp_path: Path) -> None:
+    frame = Image.new("RGB", (100, 100), "white")
+    option_rois = (
+        Rect(0, 40, 50, 20),
+        Rect(50, 40, 50, 20),
+        Rect(0, 60, 50, 20),
+        Rect(50, 60, 50, 20),
+    )
+    regions = RegionConfig(
+        question_number=Rect(0, 0, 50, 20),
+        question=Rect(0, 20, 100, 20),
+        options=option_rois,
+        option_boxes=option_rois,
+    )
+    page = ReadyQuestionPage(
+        frame,
+        1,
+        PageObservation(1, 1, "第1题", True, (1.0, 1.0, 1.0, 1.0)),
+    )
+    scheduler = AnswerScheduler(
+        config=scheduler_config(regions, random_on_llm_failure=True),
+        source=StaticSource(frame),
+        ocr=RetryOCR(),
+        rules=NoRules(),  # type: ignore[arg-type]
+        ollama=FailingOllama(),  # type: ignore[arg-type]
+        state_detector=FakeDetector(page),
+        recorder=DebugRecorder(DebugConfig(enabled=False, output_dir=tmp_path)),
+        adb=None,
+        random_source=FixedRandom(),  # type: ignore[arg-type]
+    )
+    decision = scheduler.run(dry_run=True)
+    assert decision is not None
+    assert decision.answer_index == 2
+    assert decision.source == "random-fallback"
