@@ -60,6 +60,7 @@ class RegionConfig:
 class OCRConfig:
     language: str = "ch"
     confidence_threshold: float = 0.60
+    option_symbol_confidence_threshold: float = 0.45
     use_gpu: bool = True
     enable_mkldnn: bool = False
     cpu_threads: int = 8
@@ -235,6 +236,10 @@ class AppConfig:
                 )
         if not 0 <= self.ocr.confidence_threshold <= 1:
             raise ConfigurationError("ocr.confidence_threshold must be between 0 and 1")
+        if not 0 <= self.ocr.option_symbol_confidence_threshold <= 1:
+            raise ConfigurationError(
+                "ocr.option_symbol_confidence_threshold must be between 0 and 1"
+            )
         if self.ocr.cpu_threads <= 0:
             raise ConfigurationError("ocr.cpu_threads must be positive")
         if self.ocr.isolated_fragment_max_chars < 0:
@@ -515,6 +520,9 @@ def load_config(path: str | Path) -> AppConfig:
         ocr=OCRConfig(
             language=str(ocr.get("language", "ch")),
             confidence_threshold=float(ocr.get("confidence_threshold", 0.60)),
+            option_symbol_confidence_threshold=float(
+                ocr.get("option_symbol_confidence_threshold", 0.45)
+            ),
             use_gpu=bool(ocr.get("use_gpu", True)),
             enable_mkldnn=bool(ocr.get("enable_mkldnn", False)),
             cpu_threads=int(ocr.get("cpu_threads", 8)),

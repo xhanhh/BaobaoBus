@@ -80,6 +80,7 @@ height = 110
 [ocr]
 language = "ch"
 confidence_threshold = 0.60
+option_symbol_confidence_threshold = 0.45
 use_gpu = true
 # PaddleOCR 3.7 + PaddlePaddle 3.3.1 can fail in the oneDNN PIR converter.
 # Keep this disabled unless a future verified version fixes that incompatibility.

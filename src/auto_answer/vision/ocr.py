@@ -210,8 +210,25 @@ class PaddleOCRReader:
         result: OCRResult,
         image: Image.Image,
     ) -> OCRResult:
-        """Recover only a clearly visible, thin horizontal minus missed by OCR."""
-        if result.text.strip() or not self._config.recover_thin_minus:
+        """Recover/accept clear isolated math glyphs that OCR handles poorly."""
+        recognized = result.text.strip()
+        if recognized:
+            if (
+                recognized in {"<", ">", "=", "＜", "＞", "＝"}
+                and result.confidence
+                >= self._config.option_symbol_confidence_threshold
+                and result.low_confidence
+            ):
+                return OCRResult(
+                    text=result.text,
+                    confidence=result.confidence,
+                    low_confidence=False,
+                    lines=result.lines,
+                    line_confidences=result.line_confidences,
+                    boxes=result.boxes,
+                )
+            return result
+        if not self._config.recover_thin_minus:
             return result
 
         grayscale = np.asarray(image.convert("L"), dtype=np.uint8)
@@ -222,35 +239,83 @@ class PaddleOCRReader:
         bottom = int(height * 0.85)
         center = grayscale[top:bottom, left:right]
         foreground = center < self._config.symbol_foreground_threshold
-        ys, xs = np.where(foreground)
-        if len(xs) < 12:
+        if int(np.count_nonzero(foreground)) < 12:
             return result
 
-        stroke_left = int(xs.min())
-        stroke_right = int(xs.max())
-        stroke_top = int(ys.min())
-        stroke_bottom = int(ys.max())
-        stroke_width = stroke_right - stroke_left + 1
-        stroke_height = stroke_bottom - stroke_top + 1
-        if stroke_width < 12 or stroke_height > 4 or stroke_width < stroke_height * 6:
+        minimum_row_width = max(12, int(center.shape[1] * 0.07))
+        candidate_rows = np.flatnonzero(
+            np.count_nonzero(foreground, axis=1) >= minimum_row_width
+        )
+        row_groups = self._consecutive_groups(candidate_rows)
+        strokes: list[tuple[int, int, int, int]] = []
+        for stroke_top, stroke_bottom in row_groups:
+            stroke_pixels = foreground[stroke_top : stroke_bottom + 1]
+            columns = np.flatnonzero(np.any(stroke_pixels, axis=0))
+            if len(columns) == 0:
+                continue
+            stroke_left = int(columns[0])
+            stroke_right = int(columns[-1])
+            stroke_width = stroke_right - stroke_left + 1
+            stroke_height = stroke_bottom - stroke_top + 1
+            if (
+                stroke_width >= 12
+                and stroke_height <= 6
+                and stroke_width >= stroke_height * 4
+            ):
+                strokes.append(
+                    (stroke_left, stroke_top, stroke_right, stroke_bottom)
+                )
+
+        symbol = ""
+        if len(strokes) == 1:
+            symbol = "-"
+        elif len(strokes) == 2:
+            first, second = strokes
+            widths = (first[2] - first[0] + 1, second[2] - second[0] + 1)
+            centers = ((first[0] + first[2]) / 2, (second[0] + second[2]) / 2)
+            if (
+                min(widths) / max(widths) >= 0.65
+                and abs(centers[0] - centers[1]) <= max(widths) * 0.20
+            ):
+                symbol = "="
+        if not symbol:
             return result
 
         confidence = 0.90
+        left_edge = min(stroke[0] for stroke in strokes)
+        top_edge = min(stroke[1] for stroke in strokes)
+        right_edge = max(stroke[2] for stroke in strokes)
+        bottom_edge = max(stroke[3] for stroke in strokes)
         return OCRResult(
-            text="-",
+            text=symbol,
             confidence=confidence,
             low_confidence=confidence < self._config.confidence_threshold,
-            lines=("-",),
+            lines=(symbol,),
             line_confidences=(confidence,),
             boxes=(
                 [
-                    left + stroke_left,
-                    top + stroke_top,
-                    left + stroke_right + 1,
-                    top + stroke_bottom + 1,
+                    left + left_edge,
+                    top + top_edge,
+                    left + right_edge + 1,
+                    top + bottom_edge + 1,
                 ],
             ),
         )
+
+    @staticmethod
+    def _consecutive_groups(values: np.ndarray) -> list[tuple[int, int]]:
+        if len(values) == 0:
+            return []
+        groups: list[tuple[int, int]] = []
+        start = previous = int(values[0])
+        for raw_value in values[1:]:
+            value = int(raw_value)
+            if value != previous + 1:
+                groups.append((start, previous))
+                start = value
+            previous = value
+        groups.append((start, previous))
+        return groups
 
     @staticmethod
     def _box_metrics(box: Any) -> tuple[float, float]:

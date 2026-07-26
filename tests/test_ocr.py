@@ -68,6 +68,35 @@ def test_empty_ocr_recovers_a_visible_thin_minus_option() -> None:
     assert recovered.low_confidence is False
 
 
+def test_empty_ocr_recovers_a_visible_equals_option() -> None:
+    image = Image.new("RGB", (444, 85), "white")
+    draw = ImageDraw.Draw(image)
+    draw.line((205, 38, 240, 38), fill=(0, 80, 160), width=3)
+    draw.line((205, 49, 240, 49), fill=(0, 80, 160), width=3)
+    empty = reader()._build((), (), ())  # noqa: SLF001
+
+    recovered = reader()._recover_empty_option_symbol(empty, image)  # noqa: SLF001
+
+    assert recovered.text == "="
+    assert recovered.low_confidence is False
+
+
+def test_comparison_symbol_uses_separate_confidence_threshold() -> None:
+    low_symbol = reader()._build(  # noqa: SLF001
+        (">",),
+        (0.537,),
+        ([200, 20, 245, 65],),
+    )
+
+    recovered = reader()._recover_empty_option_symbol(  # noqa: SLF001
+        low_symbol,
+        Image.new("RGB", (444, 85), "white"),
+    )
+
+    assert recovered.text == ">"
+    assert recovered.low_confidence is False
+
+
 def test_truly_blank_option_is_not_recovered() -> None:
     image = Image.new("RGB", (444, 85), "white")
     empty = reader()._build((), (), ())  # noqa: SLF001

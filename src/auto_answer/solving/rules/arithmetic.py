@@ -66,6 +66,10 @@ _SUBTRACTION_CHANGES = re.compile(
     rf"被减数(?P<first_direction>增加|减少)(?P<first>{NUMBER})[,，]"
     rf"减数(?P<second_direction>增加|减少)(?P<second>{NUMBER})[,，]差"
 )
+_IDENTITY_ELEMENT = re.compile(
+    rf"一个数(?P<operation>加|减|乘|除以){_BLANK}[,，]?"
+    rf"(?P<result>和|差|积|商)还是原来的数"
+)
 _SUBTRAHEND_FROM_DIFFERENCE = re.compile(
     rf"被减数是(?P<minuend>{NUMBER})[,，]"
     rf"差是(?P<difference>{NUMBER})[,，]"
@@ -122,6 +126,22 @@ def solve_arithmetic_sequence(
 
 
 def solve_operation_change(question: Question) -> SolveDecision | None:
+    identity = _IDENTITY_ELEMENT.search(question.text)
+    if identity:
+        operation = identity.group("operation")
+        result_name = identity.group("result")
+        expected_result = {
+            "加": "和",
+            "减": "差",
+            "乘": "积",
+            "除以": "商",
+        }[operation]
+        if result_name != expected_result:
+            return None
+        target = Decimal(0 if operation in {"加", "减"} else 1)
+        values = tuple(parse_number(option) for option in question.options)
+        return match_unique(target, values, "identity element")
+
     difference = _DIFFERENCE_FROM_TERMS.search(question.text)
     if difference:
         minuend = Decimal(difference.group("minuend"))

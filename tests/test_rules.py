@@ -871,6 +871,18 @@ def test_two_equal_addends() -> None:
     assert result.answer_index == 0
 
 
+def test_additive_identity_element_keeps_original_number() -> None:
+    result = RuleEngine().solve(
+        question(
+            "一个数加(),和还是原来的数.",
+            ("100", "0", "10", "1"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 1
+    assert result.reason == "identity element: 0"
+
+
 def test_total_consumed_over_two_days() -> None:
     result = RuleEngine().solve(
         question(
