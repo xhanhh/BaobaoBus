@@ -155,6 +155,10 @@ class PageStateDetector:
         self._last_title_attempt_at = 0.0
         self._logger = logging.getLogger(__name__)
 
+    def ready_page_visible(self, frame: Image.Image) -> bool:
+        """Return the same cheap Ready/Go signal used by first-page detection."""
+        return self.observe_phase(frame).ready_page_visible
+
     def observe(
         self,
         frame: Image.Image,

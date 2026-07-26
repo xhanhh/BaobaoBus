@@ -260,6 +260,28 @@ def test_mixed_inventory_actions_are_applied_in_order() -> None:
     assert result.answer_index == 1
 
 
+def test_broken_then_bought_inventory_applies_both_actions() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小明有14个气球,破了6个,又买了5个,现在有()个气球.",
+            ("13", "19", "9", "8"),
+        )
+    )
+    assert result is not None
+    assert result.answer_index == 0
+    assert result.reason == "word arithmetic: 13"
+
+
+def test_inventory_does_not_ignore_unknown_numeric_action() -> None:
+    result = RuleEngine().solve(
+        question(
+            "小明有14个气球,神秘变化了6个,又买了5个,现在有()个气球.",
+            ("13", "19", "9", "8"),
+        )
+    )
+    assert result is None
+
+
 def test_total_reduction_answers_how_much_shorter() -> None:
     result = RuleEngine().solve(
         question(

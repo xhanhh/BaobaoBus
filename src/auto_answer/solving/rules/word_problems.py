@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from ...core.models import Question, SolveDecision
 from .common import NUMBER, match_unique
 
+_NUMBER_TOKEN = re.compile(NUMBER)
 _MAKE_MAXIMUM_GROUPS = re.compile(
     rf"(?:做|制作)(?:一个|1个)?[^,，。]*?(?:要用|需要)"
     rf"(?P<per_group>{NUMBER})[^,，。]*?[,，]"
@@ -43,6 +44,7 @@ _INITIAL_INVENTORY = re.compile(
 )
 _INVENTORY_ACTION = re.compile(
     rf"(?P<verb>吃掉了?|吃了|用了|用去了?|拿走了?|送了|放飞了?|飞走了?|"
+    rf"破了?|爆了?|坏了?|丢了?|损坏了?|"
     rf"卖了|走了|下了|下车了?|搬走了?|又买了|买来了?|又摘了?|又来了?|"
     rf"又搬来了?|"
     rf"增加了?|添了|上了|上车了?)(?P<amount>{NUMBER})"
@@ -50,6 +52,7 @@ _INVENTORY_ACTION = re.compile(
 )
 _NEGATIVE_ACTION = re.compile(
     rf"(?:吃掉了?|吃了|用了|用去了?|拿走了?|送了|放飞了?|飞走了?|"
+    rf"破了?|爆了?|坏了?|丢了?|损坏了?|"
     rf"卖了|走了|下了|下车了?|搬走了?)"
     rf"(?P<amount>{NUMBER})(?:个|根|块|颗|本|张|只|米)?"
 )
@@ -541,7 +544,8 @@ def solve_word_problem(text: str) -> Decimal | None:
 
 
 def _inventory_total(text: str) -> Decimal | None:
-    if _REMAINING_QUERY.search(text) is None:
+    remaining_query = _REMAINING_QUERY.search(text)
+    if remaining_query is None:
         return None
     initial_match = _INITIAL_INVENTORY.search(text)
     if initial_match is None:
@@ -551,6 +555,21 @@ def _inventory_total(text: str) -> Decimal | None:
     actions = list(_INVENTORY_ACTION.finditer(text, initial_match.end()))
     if not actions:
         return None
+    # Never silently skip an unknown numeric action. A partial calculation is
+    # more dangerous than declining the rule and handing the question to LLM.
+    amount_spans = [
+        (action.start("amount"), action.end("amount")) for action in actions
+    ]
+    for number in _NUMBER_TOKEN.finditer(
+        text,
+        initial_match.end(),
+        remaining_query.start(),
+    ):
+        if not any(
+            start <= number.start() and number.end() <= end
+            for start, end in amount_spans
+        ):
+            return None
     for action in actions:
         amount = Decimal(action.group("amount"))
         verb = action.group("verb")

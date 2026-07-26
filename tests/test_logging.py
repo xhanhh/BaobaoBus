@@ -20,7 +20,7 @@ def test_aliyun_workspace_is_redacted_from_formatted_httpx_log() -> None:
     assert _AliyunWorkspaceRedactionFilter().filter(record)
     assert "llm-secret-workspace" not in record.getMessage()
     assert (
-        "https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/"
+        "https://workspace-id.cn-beijing.maas.aliyuncs.com/"
         "compatible-mode/v1/chat/completions"
         in record.getMessage()
     )

@@ -89,5 +89,7 @@ class SchedulerState(Enum):
     TAPPING = auto()
     WAITING_FOR_TRANSITION = auto()
     WAITING_FOR_NEXT_QUESTION = auto()
+    HANDLING_POST_CHALLENGE = auto()
+    WAITING_FOR_READY = auto()
     ERROR = auto()
     STOPPED = auto()

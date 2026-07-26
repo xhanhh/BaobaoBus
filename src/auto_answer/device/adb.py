@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..core.config import ADBConfig
 from ..core.errors import ADBError, ConfigurationError
+from ..core.models import Point
 
 
 class ADBController:
@@ -26,6 +27,7 @@ class ADBController:
         self._shell_reader: threading.Thread | None = None
         self._shell_lock = threading.Lock()
         self._command_ids = itertools.count(1)
+        self._device_size: tuple[int, int] | None = None
 
     def check_device(self) -> str:
         if not self._executable.is_file():
@@ -62,12 +64,17 @@ class ADBController:
         if answer_index not in range(4):
             raise ADBError(f"refusing invalid answer index {answer_index}")
         point = self._config.tap_points[answer_index]
+        self.tap_point(point, purpose=f"answer option {answer_index}")
+
+    def tap_point(self, point: Point, *, purpose: str) -> None:
+        """Tap a configured phone-native point for a named UI action."""
         if point.x < 0 or point.y < 0:
             raise ConfigurationError(
-                f"ADB tap point {answer_index} is still a placeholder: ({point.x}, {point.y})"
+                f"ADB {purpose} point is invalid: ({point.x}, {point.y})"
             )
         if self._serial is None:
             self.check_device()
+        self._validate_point_against_device(point, purpose)
         if not self._config.persistent_shell:
             self._run(
                 "-s",
@@ -235,19 +242,25 @@ class ADBController:
         ]
         if not sizes:
             raise ADBError(f"could not parse phone screen size from: {output.strip()!r}")
-        width, height = sizes[-1]
+        self._device_size = sizes[-1]
         for index, point in enumerate(self._config.tap_points):
-            if point.x < 0 or point.y < 0:
-                raise ConfigurationError(
-                    f"ADB tap point {index} is still a placeholder: ({point.x}, {point.y})"
-                )
-            portrait_fit = point.x < width and point.y < height
-            landscape_fit = point.x < height and point.y < width
-            if not portrait_fit and not landscape_fit:
-                raise ConfigurationError(
-                    f"ADB tap point {index}=({point.x}, {point.y}) is outside device "
-                    f"size {width}x{height} in both orientations"
-                )
+            self._validate_point_against_device(point, f"answer option {index}")
+
+    def _validate_point_against_device(self, point: Point, purpose: str) -> None:
+        if point.x < 0 or point.y < 0:
+            raise ConfigurationError(
+                f"ADB {purpose} point is invalid: ({point.x}, {point.y})"
+            )
+        if self._device_size is None:
+            return
+        width, height = self._device_size
+        portrait_fit = point.x < width and point.y < height
+        landscape_fit = point.x < height and point.y < width
+        if not portrait_fit and not landscape_fit:
+            raise ConfigurationError(
+                f"ADB {purpose} point=({point.x}, {point.y}) is outside device "
+                f"size {width}x{height} in both orientations"
+            )
 
     def _run(self, *arguments: str | None) -> str:
         command = [str(self._executable), *(arg for arg in arguments if arg is not None)]

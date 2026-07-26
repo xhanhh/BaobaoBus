@@ -83,6 +83,8 @@ y=-1
     assert config.fallback.random_on_ocr_failure is False
     assert config.fallback.random_on_llm_failure is False
     assert config.adb.persistent_shell is True
+    assert config.post_challenge.enabled is False
+    assert config.post_challenge.success_banner is None
     assert [(item.left, item.top) for item in config.regions.options] == [
         (0, 100),
         (200, 100),

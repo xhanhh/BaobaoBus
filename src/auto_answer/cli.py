@@ -12,6 +12,7 @@ from .core.config import AppConfig, load_config
 from .core.errors import AutoAnswerError, ConfigurationError
 from .device.adb import ADBController
 from .runtime.debug import DebugRecorder
+from .runtime.post_challenge import PostChallengeController
 from .runtime.scheduler import AnswerScheduler
 from .solving.llm import build_llm_client
 from .solving.rules import RuleEngine
@@ -117,19 +118,31 @@ def main() -> int:
         )
         llm_client.start_warmup()
         ocr_reader = PaddleOCRReader(config.ocr)
+        state_detector = PageStateDetector(
+            config.state,
+            config.regions,
+            ocr_reader.recognize_single,
+        )
+        post_challenge = (
+            PostChallengeController(
+                config.post_challenge,
+                source,
+                adb,
+                state_detector.ready_page_visible,
+            )
+            if config.post_challenge.enabled and adb is not None
+            else None
+        )
         scheduler = AnswerScheduler(
             config=config,
             source=source,
             ocr=ocr_reader,
             rules=RuleEngine(),
             llm=llm_client,
-            state_detector=PageStateDetector(
-                config.state,
-                config.regions,
-                ocr_reader.recognize_single,
-            ),
+            state_detector=state_detector,
             recorder=DebugRecorder(config.debug),
             adb=adb,
+            post_challenge=post_challenge,
         )
         decision = scheduler.run(
             dry_run=args.dry_run,

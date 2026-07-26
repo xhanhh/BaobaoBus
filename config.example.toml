@@ -184,6 +184,32 @@ infer_first_question_number_after_ready = true
 # Save one separate title OCR on transitions; batch OCR still verifies the title.
 infer_sequential_question_number = true
 
+[post_challenge]
+# Disabled by default. The sample ROIs assume a 1500x674 captured scrcpy frame.
+enabled = false
+success_banner = { left = 400, top = 100, width = 700, height = 120 }
+continue_button = { left = 805, top = 485, width = 270, height = 100 }
+ranking_panel = { left = 430, top = 90, width = 650, height = 470 }
+ranking_close_button = { left = 1060, top = 120, width = 110, height = 100 }
+# PHONE-NATIVE coordinates for a 2670x1200 landscape screen.
+ranking_close_tap = { x = 1980, y = 300 }
+continue_challenge_tap = { x = 1660, y = 960 }
+poll_interval_seconds = 0.10
+detection_timeout_seconds = 3.0
+ranking_popup_wait_seconds = 4.0
+ranking_close_timeout_seconds = 10.0
+ready_timeout_seconds = 30.0
+confirm_frames = 3
+max_capture_failures = 3
+success_green_ratio = 0.35
+failure_blue_ratio = 0.55
+continue_orange_ratio = 0.30
+popup_banner_pink_ratio = 0.35
+popup_panel_pink_ratio = 0.10
+popup_panel_white_ratio = 0.30
+popup_close_white_ratio = 0.20
+popup_close_orange_ratio = 0.03
+
 [debug]
 enabled = true
 output_dir = "artifacts/failures"

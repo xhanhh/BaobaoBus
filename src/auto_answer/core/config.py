@@ -143,6 +143,32 @@ class StateConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class PostChallengeConfig:
+    enabled: bool = False
+    success_banner: Rect | None = None
+    continue_button: Rect | None = None
+    ranking_panel: Rect | None = None
+    ranking_close_button: Rect | None = None
+    ranking_close_tap: Point | None = None
+    continue_challenge_tap: Point | None = None
+    poll_interval_seconds: float = 0.10
+    detection_timeout_seconds: float = 3.0
+    ranking_popup_wait_seconds: float = 4.0
+    ranking_close_timeout_seconds: float = 10.0
+    ready_timeout_seconds: float = 30.0
+    confirm_frames: int = 3
+    max_capture_failures: int = 3
+    success_green_ratio: float = 0.35
+    failure_blue_ratio: float = 0.55
+    continue_orange_ratio: float = 0.30
+    popup_banner_pink_ratio: float = 0.35
+    popup_panel_pink_ratio: float = 0.10
+    popup_panel_white_ratio: float = 0.30
+    popup_close_white_ratio: float = 0.20
+    popup_close_orange_ratio: float = 0.03
+
+
+@dataclass(frozen=True, slots=True)
 class DebugConfig:
     enabled: bool = True
     output_dir: Path = Path("artifacts/failures")
@@ -165,6 +191,7 @@ class AppConfig:
     llm: LLMRoutingConfig
     adb: ADBConfig
     state: StateConfig
+    post_challenge: PostChallengeConfig
     debug: DebugConfig
     fallback: FallbackConfig
     log_file: Path = Path("artifacts/auto-answer.log")
@@ -187,6 +214,20 @@ class AppConfig:
             region_entries.append(
                 ("regions.ready_indicator", self.regions.ready_indicator)
             )
+        post_challenge_regions = (
+            ("post_challenge.success_banner", self.post_challenge.success_banner),
+            ("post_challenge.continue_button", self.post_challenge.continue_button),
+            ("post_challenge.ranking_panel", self.post_challenge.ranking_panel),
+            (
+                "post_challenge.ranking_close_button",
+                self.post_challenge.ranking_close_button,
+            ),
+        )
+        region_entries.extend(
+            (label, roi)
+            for label, roi in post_challenge_regions
+            if roi is not None
+        )
         for label, roi in region_entries:
             if roi.right > frame.width or roi.bottom > frame.height:
                 raise ConfigurationError(
@@ -242,6 +283,43 @@ class AppConfig:
             )
         if not 0 <= self.state.ready_min_purple_ratio <= 1:
             raise ConfigurationError("state.ready_min_purple_ratio must be in [0, 1]")
+        if self.post_challenge.confirm_frames < 2:
+            raise ConfigurationError(
+                "post_challenge.confirm_frames must be at least 2"
+            )
+        if self.post_challenge.max_capture_failures <= 0:
+            raise ConfigurationError(
+                "post_challenge.max_capture_failures must be positive"
+            )
+        ratio_values = {
+            "post_challenge.success_green_ratio": (
+                self.post_challenge.success_green_ratio
+            ),
+            "post_challenge.failure_blue_ratio": (
+                self.post_challenge.failure_blue_ratio
+            ),
+            "post_challenge.continue_orange_ratio": (
+                self.post_challenge.continue_orange_ratio
+            ),
+            "post_challenge.popup_banner_pink_ratio": (
+                self.post_challenge.popup_banner_pink_ratio
+            ),
+            "post_challenge.popup_panel_pink_ratio": (
+                self.post_challenge.popup_panel_pink_ratio
+            ),
+            "post_challenge.popup_panel_white_ratio": (
+                self.post_challenge.popup_panel_white_ratio
+            ),
+            "post_challenge.popup_close_white_ratio": (
+                self.post_challenge.popup_close_white_ratio
+            ),
+            "post_challenge.popup_close_orange_ratio": (
+                self.post_challenge.popup_close_orange_ratio
+            ),
+        }
+        for label, value in ratio_values.items():
+            if not 0 <= value <= 1:
+                raise ConfigurationError(f"{label} must be in [0, 1]")
         positive_timeouts = {
             "ollama.timeout_seconds": self.ollama.timeout_seconds,
             "openai_compatible.timeout_seconds": (
@@ -262,6 +340,21 @@ class AppConfig:
                 self.state.ready_poll_interval_seconds
             ),
             "state.ready_fast_window_seconds": self.state.ready_fast_window_seconds,
+            "post_challenge.poll_interval_seconds": (
+                self.post_challenge.poll_interval_seconds
+            ),
+            "post_challenge.detection_timeout_seconds": (
+                self.post_challenge.detection_timeout_seconds
+            ),
+            "post_challenge.ranking_popup_wait_seconds": (
+                self.post_challenge.ranking_popup_wait_seconds
+            ),
+            "post_challenge.ranking_close_timeout_seconds": (
+                self.post_challenge.ranking_close_timeout_seconds
+            ),
+            "post_challenge.ready_timeout_seconds": (
+                self.post_challenge.ready_timeout_seconds
+            ),
         }
         for label, value in positive_timeouts.items():
             if value <= 0:
@@ -292,6 +385,40 @@ class AppConfig:
             ):
                 raise ConfigurationError(
                     "openai_compatible.api_key or api_key_env must not be empty"
+                )
+        if self.post_challenge.enabled:
+            if self.regions.ready_indicator is None:
+                raise ConfigurationError(
+                    "enabled post_challenge requires regions.ready_indicator"
+                )
+            required_regions = {
+                label: value for label, value in post_challenge_regions
+            }
+            missing_regions = [
+                label for label, value in required_regions.items() if value is None
+            ]
+            if missing_regions:
+                raise ConfigurationError(
+                    "enabled post_challenge requires regions: "
+                    f"{missing_regions!r}"
+                )
+            required_taps = {
+                "post_challenge.ranking_close_tap": (
+                    self.post_challenge.ranking_close_tap
+                ),
+                "post_challenge.continue_challenge_tap": (
+                    self.post_challenge.continue_challenge_tap
+                ),
+            }
+            invalid_taps = [
+                label
+                for label, point in required_taps.items()
+                if point is None or point.x < 0 or point.y < 0
+            ]
+            if invalid_taps:
+                raise ConfigurationError(
+                    "enabled post_challenge requires non-negative phone tap "
+                    f"coordinates: {invalid_taps!r}"
                 )
         if require_live_coordinates:
             for index, point in enumerate(self.adb.tap_points):
@@ -339,6 +466,7 @@ def load_config(path: str | Path) -> AppConfig:
     state = raw.get("state", {})
     debug = raw.get("debug", {})
     fallback = raw.get("fallback", {})
+    post_challenge = raw.get("post_challenge", {})
     runtime = raw.get("runtime", {})
 
     option_rects = [_rect(item, f"regions.options[{i}]") for i, item in enumerate(
@@ -503,6 +631,100 @@ def load_config(path: str | Path) -> AppConfig:
             ),
             infer_sequential_question_number=bool(
                 state.get("infer_sequential_question_number", True)
+            ),
+        ),
+        post_challenge=PostChallengeConfig(
+            enabled=bool(post_challenge.get("enabled", False)),
+            success_banner=(
+                _rect(
+                    post_challenge["success_banner"],
+                    "post_challenge.success_banner",
+                )
+                if "success_banner" in post_challenge
+                else None
+            ),
+            continue_button=(
+                _rect(
+                    post_challenge["continue_button"],
+                    "post_challenge.continue_button",
+                )
+                if "continue_button" in post_challenge
+                else None
+            ),
+            ranking_panel=(
+                _rect(
+                    post_challenge["ranking_panel"],
+                    "post_challenge.ranking_panel",
+                )
+                if "ranking_panel" in post_challenge
+                else None
+            ),
+            ranking_close_button=(
+                _rect(
+                    post_challenge["ranking_close_button"],
+                    "post_challenge.ranking_close_button",
+                )
+                if "ranking_close_button" in post_challenge
+                else None
+            ),
+            ranking_close_tap=(
+                _point(
+                    post_challenge["ranking_close_tap"],
+                    "post_challenge.ranking_close_tap",
+                )
+                if "ranking_close_tap" in post_challenge
+                else None
+            ),
+            continue_challenge_tap=(
+                _point(
+                    post_challenge["continue_challenge_tap"],
+                    "post_challenge.continue_challenge_tap",
+                )
+                if "continue_challenge_tap" in post_challenge
+                else None
+            ),
+            poll_interval_seconds=float(
+                post_challenge.get("poll_interval_seconds", 0.10)
+            ),
+            detection_timeout_seconds=float(
+                post_challenge.get("detection_timeout_seconds", 3.0)
+            ),
+            ranking_popup_wait_seconds=float(
+                post_challenge.get("ranking_popup_wait_seconds", 4.0)
+            ),
+            ranking_close_timeout_seconds=float(
+                post_challenge.get("ranking_close_timeout_seconds", 10.0)
+            ),
+            ready_timeout_seconds=float(
+                post_challenge.get("ready_timeout_seconds", 30.0)
+            ),
+            confirm_frames=int(post_challenge.get("confirm_frames", 3)),
+            max_capture_failures=int(
+                post_challenge.get("max_capture_failures", 3)
+            ),
+            success_green_ratio=float(
+                post_challenge.get("success_green_ratio", 0.35)
+            ),
+            failure_blue_ratio=float(
+                post_challenge.get("failure_blue_ratio", 0.55)
+            ),
+            continue_orange_ratio=float(
+                post_challenge.get("continue_orange_ratio", 0.30)
+            ),
+            popup_banner_pink_ratio=float(
+                post_challenge.get("popup_banner_pink_ratio", 0.35)
+            ),
+            popup_panel_pink_ratio=float(
+                post_challenge.get("popup_panel_pink_ratio", 0.10)
+            ),
+            popup_panel_white_ratio=float(
+                post_challenge.get("popup_panel_white_ratio", 0.30)
+            ),
+            popup_close_white_ratio=float(
+                post_challenge.get("popup_close_white_ratio", 0.20)
+            ),
+            popup_close_orange_ratio=float(
+                post_challenge.get("popup_close_orange_ratio", 0.03)
             ),
         ),
         debug=DebugConfig(

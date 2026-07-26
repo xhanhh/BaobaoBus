@@ -34,6 +34,24 @@ def test_nonpersistent_tap_uses_one_shot_command(monkeypatch: object) -> None:
     ]
 
 
+def test_named_phone_native_point_uses_same_adb_resource(
+    monkeypatch: object,
+) -> None:
+    controller = ADBController(adb_config(persistent_shell=False))
+    commands: list[tuple[str | None, ...]] = []
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        controller,
+        "_run",
+        lambda *arguments: commands.append(arguments) or "",
+    )
+
+    controller.tap_point(Point(1660, 960), purpose="continue challenge")
+
+    assert commands == [
+        ("-s", "device", "shell", "input", "tap", "1660", "960")
+    ]
+
+
 def test_persistent_failure_retries_once_with_one_shot_command(
     monkeypatch: object,
 ) -> None:

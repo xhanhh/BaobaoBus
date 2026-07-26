@@ -155,6 +155,7 @@ def test_ready_page_arms_first_question_without_separate_title_ocr() -> None:
         regions,
         title_reader,
     )
+    assert detector.ready_page_visible(ready)
     result = detector.wait_for_question_page(
         SequenceSource([ready, ready, entering, answer])
     )

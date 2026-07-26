@@ -30,6 +30,7 @@ from ..vision.state import (
 )
 from ..vision.text import assemble_question
 from .debug import DebugRecorder
+from .post_challenge import PostChallengeController, PostChallengeOutcome
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +53,7 @@ class AnswerScheduler:
         state_detector: PageStateDetector,
         recorder: DebugRecorder,
         adb: ADBController | None,
+        post_challenge: PostChallengeController | None = None,
         random_source: random.Random | None = None,
     ) -> None:
         self._config = config
@@ -62,6 +64,7 @@ class AnswerScheduler:
         self._state_detector = state_detector
         self._recorder = recorder
         self._adb = adb
+        self._post_challenge = post_challenge
         self._random = random_source or random.SystemRandom()
         self.state = SchedulerState.STOPPED
         self._logger = logging.getLogger(__name__)
@@ -301,6 +304,9 @@ class AnswerScheduler:
                         "returning to question-page detection",
                         self._config.state.transition_timeout_seconds,
                     )
+                    if self._handle_post_challenge_if_present():
+                        blocked_after_tap = None
+                        deferred_after_failure = None
                 else:
                     page_confirm_ms = transition_ms
                     self._logger.info(
@@ -460,6 +466,28 @@ class AnswerScheduler:
     def _transition(self, state: SchedulerState) -> None:
         self._logger.debug("state %s -> %s", self.state.name, state.name)
         self.state = state
+
+    def _handle_post_challenge_if_present(self) -> bool:
+        if self._post_challenge is None:
+            return False
+        self._transition(SchedulerState.HANDLING_POST_CHALLENGE)
+        try:
+            outcome = self._post_challenge.handle_if_present()
+        except ADBError as exc:
+            self._logger.error(
+                "post-challenge ADB action failed; returning to page detection: %s",
+                exc,
+            )
+            return False
+        if outcome is PostChallengeOutcome.NOT_FOUND:
+            return False
+        if outcome is PostChallengeOutcome.CONTINUE_TAPPED:
+            self._logger.warning(
+                "post-challenge continue was tapped but Ready was not confirmed"
+            )
+        else:
+            self._transition(SchedulerState.WAITING_FOR_READY)
+        return True
 
     def _random_decision(self, reason: str) -> SolveDecision:
         return SolveDecision(
