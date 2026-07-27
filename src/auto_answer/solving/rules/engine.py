@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ...core.models import Question, SolveDecision
+from .advanced_arithmetic import solve_advanced_arithmetic
 from .arithmetic import (
     solve_arithmetic_expression,
     solve_arithmetic_sequence,
@@ -17,6 +18,7 @@ from .arithmetic import (
 from .common import match_unique, parse_number
 from .counting import solve_counting_problem
 from .curriculum import solve_curriculum_template
+from .decimal_concepts import solve_decimal_concept
 from .division import solve_division
 from .geometry_measurement import solve_geometry_measurement
 from .money import solve_money
@@ -58,6 +60,10 @@ class RuleEngine:
         if decision is not None:
             return decision
 
+        decision = solve_decimal_concept(question)
+        if decision is not None:
+            return decision
+
         decision = solve_money(question)
         if decision is not None:
             return decision
@@ -87,6 +93,10 @@ class RuleEngine:
             return decision
 
         decision = solve_division(question)
+        if decision is not None:
+            return decision
+
+        decision = solve_advanced_arithmetic(question)
         if decision is not None:
             return decision
 

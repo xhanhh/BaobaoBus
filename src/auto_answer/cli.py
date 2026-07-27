@@ -41,6 +41,21 @@ class _AliyunWorkspaceRedactionFilter(logging.Filter):
         return True
 
 
+class _ConsoleFormatter(logging.Formatter):
+    """Apply optional ANSI color only to console output, never the log file."""
+
+    _GREEN = "\033[32m"
+    _RESET = "\033[0m"
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = super().format(record)
+        return (
+            f"{self._GREEN}{message}{self._RESET}"
+            if getattr(record, "console_green", False)
+            else message
+        )
+
+
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="scrcpy + PaddleOCR + routed LLM auto answer"
@@ -63,17 +78,25 @@ def _arguments() -> argparse.Namespace:
 
 def _configure_logging(config: AppConfig) -> None:
     config.log_file.parent.mkdir(parents=True, exist_ok=True)
+    format_string = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    date_format = "%Y-%m-%d %H:%M:%S"
     formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+        format_string,
+        datefmt=date_format,
     )
-    console = logging.StreamHandler()
-    console.setFormatter(formatter)
+    # StreamHandler defaults to stderr. IDEA renders stderr in red regardless of
+    # the record's logging level, so normal INFO output looked like an error.
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(_ConsoleFormatter(format_string, datefmt=date_format))
     console.addFilter(_AliyunWorkspaceRedactionFilter())
     file_handler = logging.FileHandler(config.log_file, encoding="utf-8")
     file_handler.setFormatter(formatter)
     file_handler.addFilter(_AliyunWorkspaceRedactionFilter())
-    logging.basicConfig(level=logging.INFO, handlers=[console, file_handler], force=True)
+    logging.basicConfig(
+        level=getattr(logging, config.log_level),
+        handlers=[console, file_handler],
+        force=True,
+    )
 
 
 def main() -> int:

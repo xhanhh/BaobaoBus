@@ -9,7 +9,8 @@ from ...core.models import Question, SolveDecision
 from .common import NUMBER, match_unique, parse_number
 
 _CLOSEST_NUMBER = re.compile(
-    rf"(?:各数|数)中[,，]?(?:哪一个|哪个)?最接近(?P<target>{NUMBER})"
+    rf"(?:各数|数)中[,，]?(?:哪一个|哪个)?最接近"
+    rf"(?P<target>{NUMBER})(?P<unit>万|亿)?"
 )
 _COUNT_BY_HUNDREDS = re.compile(
     rf"(?:从(?P<start>{NUMBER})起[,，])?一百一百地数"
@@ -37,14 +38,73 @@ _ZERO_READING_CHOICE = re.compile(
     r"一个零都不读)"
 )
 _SPECIFIC_ZERO_READING = re.compile(r"(?P<number>\d{4})的两个[“\"']?0[”\"']?")
+_CHINESE_NUMBER_WRITING = re.compile(
+    r"(?P<number>[零一二两三四五六七八九十百千万亿]+)写作"
+)
+_COMPOSED_PLACE_VALUE = re.compile(
+    r"(?:\d+个(?:亿|千万|百万|十万|万|千|百|十|一)[、,，]?){2,}组成的数"
+)
+_COMPOSED_TERM = re.compile(
+    r"(?P<count>\d+)个(?P<unit>亿|千万|百万|十万|万|千|百|十|一)"
+)
+_PLACE_MULTIPLIERS = {
+    "亿": 100_000_000,
+    "千万": 10_000_000,
+    "百万": 1_000_000,
+    "十万": 100_000,
+    "万": 10_000,
+    "千": 1_000,
+    "百": 100,
+    "十": 10,
+    "一": 1,
+}
+_CHINESE_DIGITS = {
+    "零": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+_CHINESE_SMALL_UNITS = {"十": 10, "百": 100, "千": 1_000}
+_CHINESE_LARGE_UNITS = {"万": 10_000, "亿": 100_000_000}
 
 
 def solve_extended_place_value(question: Question) -> SolveDecision | None:
     values = tuple(parse_number(option) for option in question.options)
 
+    writing = _CHINESE_NUMBER_WRITING.search(question.text)
+    if writing:
+        target = _parse_chinese_integer(writing.group("number"))
+        if target is not None:
+            return match_unique(Decimal(target), values, "Chinese number writing")
+
+    if _COMPOSED_PLACE_VALUE.search(question.text):
+        terms = tuple(_COMPOSED_TERM.finditer(question.text))
+        if len(terms) >= 2:
+            target = sum(
+                (
+                    Decimal(term.group("count"))
+                    * _PLACE_MULTIPLIERS[term.group("unit")]
+                    for term in terms
+                ),
+                Decimal(),
+            )
+            return match_unique(target, values, "composed place-value number")
+
     closest = _CLOSEST_NUMBER.search(question.text)
     if closest:
-        target = Decimal(closest.group("target"))
+        multiplier = {
+            None: Decimal(1),
+            "万": Decimal(10_000),
+            "亿": Decimal(100_000_000),
+        }[closest.group("unit")]
+        target = Decimal(closest.group("target")) * multiplier
         candidates = [
             (index, value, abs(value - target))
             for index, value in enumerate(values)
@@ -166,6 +226,26 @@ def _spoken_zero_count(number: int) -> int:
         or (tens == 0 and ones != 0)
     )
     return 1 if speaks_zero else 0
+
+
+def _parse_chinese_integer(text: str) -> int | None:
+    total = 0
+    section = 0
+    digit = 0
+    for character in text:
+        if character in _CHINESE_DIGITS:
+            digit = _CHINESE_DIGITS[character]
+        elif character in _CHINESE_SMALL_UNITS:
+            section += (digit or 1) * _CHINESE_SMALL_UNITS[character]
+            digit = 0
+        elif character in _CHINESE_LARGE_UNITS:
+            section += digit
+            total += section * _CHINESE_LARGE_UNITS[character]
+            section = 0
+            digit = 0
+        else:
+            return None
+    return total + section + digit
 
 
 def _match_text(

@@ -409,7 +409,7 @@ class PageStateDetector:
                 ):
                     answer_entering_at = now
                     fast_poll_until = now + self._config.ready_fast_window_seconds
-                    self._logger.info(
+                    self._logger.debug(
                         "answer page entering %.0fms after Ready",
                         (answer_entering_at - ready_confirmed_at) * 1000,
                     )

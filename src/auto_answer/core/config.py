@@ -196,8 +196,14 @@ class AppConfig:
     debug: DebugConfig
     fallback: FallbackConfig
     log_file: Path = Path("artifacts/auto-answer.log")
+    log_level: str = "INFO"
 
     def validate(self, *, require_live_coordinates: bool = True) -> None:
+        if self.log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            raise ConfigurationError(
+                "runtime.log_level must be one of "
+                "DEBUG, INFO, WARNING, ERROR, CRITICAL"
+            )
         frame = self.capture.screen_rect
         region_entries = [
             ("regions.question_number", self.regions.question_number),
@@ -491,6 +497,7 @@ def load_config(path: str | Path) -> AppConfig:
     adb_path = Path(adb.get("executable", "tools/android/adb.exe"))
     output_dir = Path(debug.get("output_dir", "artifacts/failures"))
     log_file = Path(runtime.get("log_file", "artifacts/auto-answer.log"))
+    log_level = str(runtime.get("log_level", "INFO")).strip().upper()
     configured_serial = str(adb.get("serial", "")).strip() or None
     detection_model = str(
         ocr.get("text_detection_model_name", "PP-OCRv6_medium_det")
@@ -751,6 +758,7 @@ def load_config(path: str | Path) -> AppConfig:
             ),
         ),
         log_file=(base_dir / log_file).resolve() if not log_file.is_absolute() else log_file,
+        log_level=log_level,
     )
     result.validate(require_live_coordinates=False)
     return result

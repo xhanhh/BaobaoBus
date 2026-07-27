@@ -359,7 +359,7 @@ class OllamaClient:
         total_ms = milliseconds("total_duration")
         if total_ms <= 0:
             return
-        self._logger.info(
+        self._logger.debug(
             "OLLAMA_TIMING mode=%s total_ms=%.0f load_ms=%.0f "
             "prompt_eval_ms=%.0f eval_ms=%.0f prompt_tokens=%s eval_tokens=%s",
             "numeric" if numeric_mode else "text",
@@ -394,7 +394,7 @@ class OllamaClient:
         except httpx.HTTPError as exc:
             self._logger.warning("Ollama background warmup failed: %s", exc)
             return
-        self._logger.info(
+        self._logger.debug(
             "Ollama model warmed in %.0fms",
             (time.perf_counter() - started) * 1000,
         )

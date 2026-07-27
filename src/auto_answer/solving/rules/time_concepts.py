@@ -56,10 +56,27 @@ _QUARTER_HOUR_LATER = re.compile(
     rf".*?(?:过一刻钟|一刻钟后)"
 )
 _QUARTER_HOUR_IS = re.compile(r"^一刻钟是(?:\(\)|多少|几)")
+_MINUTE_HAND_ROTATION = re.compile(
+    r"从(?P<start_hour>\d{1,2}):(?P<start_minute>\d{2})走到"
+    r"(?P<end_hour>\d{1,2}):(?P<end_minute>\d{2})[,，]分针转动了"
+)
 
 
 def solve_time(question: Question) -> SolveDecision | None:
     values = tuple(parse_number(option) for option in question.options)
+
+    rotation = _MINUTE_HAND_ROTATION.search(question.text)
+    if rotation:
+        start = int(rotation.group("start_hour")) * 60 + int(
+            rotation.group("start_minute")
+        )
+        end = int(rotation.group("end_hour")) * 60 + int(rotation.group("end_minute"))
+        elapsed = (end - start) % (12 * 60)
+        target = Decimal(elapsed * 6)
+        degree_values = tuple(
+            parse_number(option.rstrip("°度")) for option in question.options
+        )
+        return match_unique(target, degree_values, "minute-hand rotation")
 
     if _QUARTER_HOUR_IS.search(question.text):
         matches = [

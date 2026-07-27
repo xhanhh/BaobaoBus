@@ -31,6 +31,7 @@ from ..vision.state import (
 from ..vision.text import assemble_question
 from .debug import DebugRecorder
 from .post_challenge import PostChallengeController, PostChallengeOutcome
+from .stats import SessionStats
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +67,7 @@ class AnswerScheduler:
         self._adb = adb
         self._post_challenge = post_challenge
         self._random = random_source or random.SystemRandom()
+        self._stats = SessionStats()
         self.state = SchedulerState.STOPPED
         self._logger = logging.getLogger(__name__)
 
@@ -117,13 +119,13 @@ class AnswerScheduler:
                         # Keep a failed question excluded until the user advances it or a
                         # different question appears. This is the manual-handling mode.
                         continue
-                    self._logger.info(
+                    self._logger.debug(
                         "question page %d confirmed in %.0fms",
                         ready_page.question_number,
                         page_confirm_ms,
                     )
                     if ready_page.ready_to_answer_ms is not None:
-                        self._logger.info(
+                        self._logger.debug(
                             "FIRST_PAGE_TIMING ready_to_answer_ms=%.0f "
                             "answer_layout_to_confirm_ms=%.0f number_source=%s",
                             ready_page.ready_to_answer_ms,
@@ -237,7 +239,7 @@ class AnswerScheduler:
                     decision.source,
                     decision.reason,
                 )
-                self._logger.info(
+                self._logger.debug(
                     "TIMING question=%d page_confirm_ms=%.0f ocr_ms=%.0f "
                     "solve_ms=%.0f recognize_to_decision_ms=%.0f",
                     question_number,
@@ -268,7 +270,8 @@ class AnswerScheduler:
                     ready_page = None
                     continue
                 tap_ms = (time.perf_counter() - tap_started) * 1000
-                self._logger.info(
+                self._stats.record_question(decision.source)
+                self._logger.debug(
                     "TIMING question=%d tap_ms=%.0f recognize_to_tap_ms=%.0f",
                     question_number,
                     tap_ms,
@@ -481,6 +484,12 @@ class AnswerScheduler:
             return False
         if outcome is PostChallengeOutcome.NOT_FOUND:
             return False
+        if self._post_challenge.last_result_won is not None:
+            self._stats.record_round(won=self._post_challenge.last_result_won)
+            self._logger.info(
+                self._stats.as_log_message(),
+                extra={"console_green": True},
+            )
         if outcome is PostChallengeOutcome.CONTINUE_TAPPED:
             self._logger.warning(
                 "post-challenge continue was tapped but Ready was not confirmed"

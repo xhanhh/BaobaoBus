@@ -124,6 +124,7 @@ def test_controller_closes_popup_then_continues_and_confirms_ready() -> None:
     outcome = controller.handle_if_present()
 
     assert outcome is PostChallengeOutcome.READY_CONFIRMED
+    assert controller.last_result_won is True
     assert adb.taps == [
         (Point(1980, 300), "ranking popup close"),
         (Point(1660, 960), "continue challenge"),
@@ -152,4 +153,5 @@ def test_controller_continues_directly_from_failure_page() -> None:
     outcome = controller.handle_if_present()
 
     assert outcome is PostChallengeOutcome.READY_CONFIRMED
+    assert controller.last_result_won is False
     assert adb.taps == [(Point(1660, 960), "continue challenge")]

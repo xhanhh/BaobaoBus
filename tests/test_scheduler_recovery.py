@@ -165,7 +165,7 @@ def test_transient_incomplete_ocr_is_retried_without_stopping(
         recorder=DebugRecorder(DebugConfig(enabled=False, output_dir=tmp_path)),
         adb=None,
     )
-    caplog.set_level("INFO")  # type: ignore[attr-defined]
+    caplog.set_level("DEBUG")  # type: ignore[attr-defined]
     decision = scheduler.run(dry_run=True)
     assert decision is not None
     assert decision.answer_index == 1

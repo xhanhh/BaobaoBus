@@ -134,7 +134,7 @@ class OpenAICompatibleClient:
                 f"Aliyun OpenAI response has no choices[0].message.content: {body!r}"
             ) from exc
         usage = body.get("usage", {}) if isinstance(body, dict) else {}
-        self._logger.info(
+        self._logger.debug(
             "OPENAI_TIMING provider=aliyun model=%s mode=%s total_ms=%.0f "
             "prompt_tokens=%s completion_tokens=%s",
             self._config.model,

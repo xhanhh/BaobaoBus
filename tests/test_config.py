@@ -85,6 +85,7 @@ y=-1
     assert config.adb.persistent_shell is True
     assert config.post_challenge.enabled is False
     assert config.post_challenge.success_banner is None
+    assert config.log_level == "INFO"
     assert [(item.left, item.top) for item in config.regions.options] == [
         (0, 100),
         (200, 100),

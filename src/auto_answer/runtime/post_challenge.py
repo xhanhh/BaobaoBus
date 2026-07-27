@@ -40,8 +40,10 @@ class PostChallengeController:
         self._adb = adb
         self._ready_visible = ready_visible
         self._logger = logging.getLogger(__name__)
+        self.last_result_won: bool | None = None
 
     def handle_if_present(self) -> PostChallengeOutcome:
+        self.last_result_won = None
         initial = self._wait_for_result_or_popup(
             self._config.detection_timeout_seconds
         )
@@ -49,6 +51,7 @@ class PostChallengeController:
             return PostChallengeOutcome.NOT_FOUND
 
         if initial.failure_page_visible:
+            self.last_result_won = False
             self._logger.info(
                 "challenge-failure flow detected; no ranking popup expected"
             )
@@ -63,6 +66,7 @@ class PostChallengeController:
                 return PostChallengeOutcome.NOT_FOUND
             return self._tap_continue_and_wait_for_ready()
 
+        self.last_result_won = True
         popup_visible = initial.ranking_popup_visible
         self._logger.info(
             "challenge-success flow detected: ranking_popup=%s",
