@@ -45,10 +45,21 @@ class _ConsoleFormatter(logging.Formatter):
     """Apply optional ANSI color only to console output, never the log file."""
 
     _GREEN = "\033[32m"
+    _YELLOW = "\033[33m"
+    _BLUE = "\033[94m"
     _RESET = "\033[0m"
 
     def format(self, record: logging.LogRecord) -> str:
         message = super().format(record)
+        if getattr(record, "console_question", False):
+            prefix, question_marker, remainder = message.partition(" question=")
+            question_text, options_marker, options_text = remainder.partition(" options=")
+            if question_marker and options_marker:
+                return (
+                    f"{prefix}{question_marker}{self._YELLOW}{question_text}"
+                    f"{self._RESET}{options_marker}{self._BLUE}{options_text}"
+                    f"{self._RESET}"
+                )
         return (
             f"{self._GREEN}{message}{self._RESET}"
             if getattr(record, "console_green", False)

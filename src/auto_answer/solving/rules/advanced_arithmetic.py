@@ -7,7 +7,7 @@ import re
 from decimal import Decimal
 
 from ...core.models import Question, SolveDecision
-from .common import NUMBER, match_unique, parse_number
+from .common import NUMBER, evaluate_ast, match_unique, parse_number
 
 _PRODUCT_CLOSEST = re.compile(
     rf"与(?P<first>{NUMBER})\*(?P<second>{NUMBER})的积最接近"
@@ -22,10 +22,31 @@ _VERTICAL_TENS_PARTIAL = re.compile(
     rf"乘数(?P=multiplier)十位上的(?P<tens>\d)乘"
     rf"(?P=multiplicand)得"
 )
+_EXPLICIT_EXPRESSION = re.compile(
+    r"^(?:计算)?(?P<expression>[\d+\-*/().]+)="
+)
+_EQUAL_PRODUCT_EXPRESSION = re.compile(
+    rf"与(?P<target>{NUMBER}\*{NUMBER})的积一样的算式"
+)
 
 
 def solve_advanced_arithmetic(question: Question) -> SolveDecision | None:
     values = tuple(parse_number(option) for option in question.options)
+
+    explicit = _EXPLICIT_EXPRESSION.search(question.text)
+    if explicit:
+        target = _safe_expression_value(explicit.group("expression"))
+        if target is not None:
+            return match_unique(target, values, "explicit arithmetic expression")
+
+    equal_product = _EQUAL_PRODUCT_EXPRESSION.search(question.text)
+    if equal_product:
+        target = _safe_expression_value(equal_product.group("target"))
+        option_values = tuple(
+            _safe_expression_value(option) for option in question.options
+        )
+        if target is not None:
+            return match_unique(target, option_values, "equivalent product")
 
     closest = _PRODUCT_CLOSEST.search(question.text)
     if closest:
@@ -90,4 +111,14 @@ def _safe_expression_tree(text: str) -> str | None:
     try:
         return ast.dump(ast.parse(normalized, mode="eval").body, include_attributes=False)
     except SyntaxError:
+        return None
+
+
+def _safe_expression_value(text: str) -> Decimal | None:
+    normalized = text.replace("[", "(").replace("]", ")")
+    if re.fullmatch(r"[\d+\-*/(). ]+", normalized) is None:
+        return None
+    try:
+        return evaluate_ast(ast.parse(normalized, mode="eval").body)
+    except (SyntaxError, ValueError, ArithmeticError):
         return None

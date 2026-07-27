@@ -41,6 +41,10 @@ _SPECIFIC_ZERO_READING = re.compile(r"(?P<number>\d{4})的两个[“\"']?0[”\"
 _CHINESE_NUMBER_WRITING = re.compile(
     r"(?P<number>[零一二两三四五六七八九十百千万亿]+)写作"
 )
+_INSERT_ZEROS_READING = re.compile(
+    r"在(?P<left>\d)和(?P<right>\d)之间添上"
+    r"(?P<count>\d+)个0[,，]这个数读作"
+)
 _COMPOSED_PLACE_VALUE = re.compile(
     r"(?:\d+个(?:亿|千万|百万|十万|万|千|百|十|一)[、,，]?){2,}组成的数"
 )
@@ -83,6 +87,20 @@ def solve_extended_place_value(question: Question) -> SolveDecision | None:
         target = _parse_chinese_integer(writing.group("number"))
         if target is not None:
             return match_unique(Decimal(target), values, "Chinese number writing")
+
+    inserted = _INSERT_ZEROS_READING.search(question.text)
+    if inserted:
+        target = int(
+            inserted.group("left")
+            + "0" * int(inserted.group("count"))
+            + inserted.group("right")
+        )
+        matches = [
+            index
+            for index, option in enumerate(question.options)
+            if _parse_chinese_integer(option) == target
+        ]
+        return _unique_index(matches, f"inserted-zero number reading: {target}")
 
     if _COMPOSED_PLACE_VALUE.search(question.text):
         terms = tuple(_COMPOSED_TERM.finditer(question.text))

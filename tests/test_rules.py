@@ -1903,6 +1903,16 @@ def test_decimal_regressions_from_20260727_run_are_local() -> None:
 def test_advanced_arithmetic_regressions_from_20260727_run_are_local() -> None:
     cases = (
         (
+            "(18+27)*36-358=",
+            ("5", "513", "1262", "180"),
+            2,
+        ),
+        (
+            "与42*350的积一样的算式是:",
+            ("21*350", "42*35", "420*350", "21*700"),
+            3,
+        ),
+        (
             "下列各数中,与902*29的积最接近的是",
             ("27000", "32000", "36000", "24000"),
             0,
@@ -1959,6 +1969,11 @@ def test_advanced_arithmetic_regressions_from_20260727_run_are_local() -> None:
 
 def test_large_place_value_composition_from_20260727_run_is_local() -> None:
     cases = (
+        (
+            "在8和2之间添上2个0,这个数读作",
+            ("八千零二", "八百零二", "八十万零二", "八万零二"),
+            0,
+        ),
         (
             "三千零四十万写作:",
             ("30040000", "30400000", "300040", "3000040"),

@@ -94,3 +94,23 @@ def test_stats_color_is_console_only() -> None:
 
     assert console_text == "\033[32mSESSION_STATS rounds=1\033[0m"
     assert file_text == "SESSION_STATS rounds=1"
+
+
+def test_ocr_question_and_options_have_distinct_console_colors() -> None:
+    record = logging.LogRecord(
+        "auto_answer.runtime.scheduler",
+        logging.INFO,
+        "",
+        0,
+        "question_number=1 question=1+1=? options=('1', '2', '3', '4')",
+        (),
+        None,
+    )
+    record.console_question = True  # type: ignore[attr-defined]
+
+    console_text = _ConsoleFormatter("%(message)s").format(record)
+    file_text = logging.Formatter("%(message)s").format(record)
+
+    assert "question=\033[33m1+1=?\033[0m" in console_text
+    assert "options=\033[94m('1', '2', '3', '4')\033[0m" in console_text
+    assert "\033[" not in file_text

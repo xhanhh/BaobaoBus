@@ -189,6 +189,7 @@ class AnswerScheduler:
                         question_number,
                         question.text,
                         question.options,
+                        extra={"console_question": True},
                     )
                     if self._config.debug.save_each_question:
                         self._recorder.save(
