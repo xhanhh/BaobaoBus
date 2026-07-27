@@ -1,9 +1,27 @@
-# 低延迟自动答题器
+# 宝宝巴士巅峰对决 自动化答题程序
 
-程序从 Windows 桌面上的 scrcpy 视频区域抓取同一帧，批量识别题干与四个选项，
-优先用保守规则求解，无法确定时按配置请求阿里云或本地 Ollama，最后才通过 ADB 点击。
-空 OCR、低置信度、非法答案或页面变化默认都会阻止点击；暂时性识别失败会自动重试，
-持续失败会保存调试资料并等待人工处理，不会终止主循环。
+该程序可以以OCR从屏幕上获取宝宝巴士pk题目和选项，请求OpenAI（目前用的阿里千问的提示词）或者Ollama接口获取题目答案，使用安卓adb触控。
+
+## 环境需求
+
+- Windows 10+
+- Python 3.13 (venv) （需要版本一致）
+- PaddlePaddleOCR(GPU): 英伟达显卡并安装Cuda12.9（Cuda版本必须严格一致）
+- Android ADB、Scrcpy: 可以启用开发者选项和ADB调试的安卓手机（最好A14+）
+- LLM: Ollama或者阿里云大模型百炼（OpenAI）
+
+## 其他的声明
+
+分辨率和坐标有三个：
+
+1. 手机原本的分辨率坐标（主要用于adb触摸）
+2. scrcpy投屏到电脑上的分辨率坐标
+3. 电脑屏幕的分辨率坐标（按配置应该与上面的坐标一样，用于ocr与检测）
+
+默认配置是用的小米14调整的，手机不同`launch-scrcpy.ps1`里分辨率比例和adb坐标也不一定一样，需要自行调整。
+电脑屏幕ocr的坐标肯定更不一样了，这个需要慢慢来。
+
+下面都是Codex写的文档了，大致应该能看明白。
 
 ## 配置
 
@@ -75,10 +93,7 @@ api_key = "sk-..."
 api_key_env = "DASHSCOPE_API_KEY"
 enable_thinking = false
 ```
-
-项目实际使用的 `src/config.toml` 已被 `.gitignore` 排除，可以直接填写
-`api_key`。程序优先读取配置值；若留空，则回退读取 `api_key_env` 指定的
-环境变量：
+可以手动在config中配置api-key，也可以用环境变量：
 
 ```powershell
 $env:DASHSCOPE_API_KEY = "sk-..."
