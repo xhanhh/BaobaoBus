@@ -1,6 +1,6 @@
 # 宝宝巴士巅峰对决 自动化答题程序
 
-该程序可以以OCR从屏幕上获取宝宝巴士pk题目和选项，请求OpenAI（目前用的阿里千问的提示词）或者Ollama接口获取题目答案，使用安卓adb触控。
+该程序可以以OCR从屏幕上获取宝宝巴士pk题目和选项，先匹配一波本地规则集，未命中则请求OpenAI（目前用的阿里千问的提示词）或者Ollama接口获取题目答案，使用安卓adb触控。
 
 ## 环境需求
 
@@ -104,8 +104,6 @@ $env:DASHSCOPE_API_KEY = "sk-..."
 与 Ollama 相同的答案序号、算式、答案值和选项对应关系校验。首选来源出现 HTTP
 错误、超时、空响应或严格校验失败时，才会尝试下一个来源。
 
-CPU OCR 默认设置 `ocr.enable_mkldnn = false`，用于规避部分 PaddlePaddle 3.x
-版本在 oneDNN/PIR 指令转换中的运行错误。关闭后可能略慢，但不会影响识别逻辑。
 内容识别默认使用 `PP-OCRv5_mobile_det` 和 `PP-OCRv5_mobile_rec`，相较 medium
 模型更适合实时答题；模型名称可通过 `ocr.text_detection_model_name` 和
 `ocr.text_recognition_model_name` 调整。
